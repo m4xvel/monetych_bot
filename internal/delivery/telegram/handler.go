@@ -42,7 +42,7 @@ func (h *Handler) shouldProcess(chatID int64, messageID int) bool {
 }
 
 func (h *Handler) registerRoutes() {
-	h.router.RegisterCommand("star", h.handleStartCommand)
+	h.router.RegisterCommand("start", h.handleStartCommand)
 
 	h.router.RegisterCallback("game:", h.handleGameSelect)
 	h.router.RegisterCallback("type:", h.handleTypeSelect)
