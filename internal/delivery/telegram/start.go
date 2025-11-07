@@ -11,6 +11,12 @@ import (
 func (h *Handler) handleStartCommand(ctx context.Context, upd tgbotapi.Update) {
 	chatID := upd.Message.Chat.ID
 
+	err := h.userService.AddUserIfNotExists(ctx, chatID)
+	if err != nil {
+		h.bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка добавления в базу данных."))
+		return
+	}
+
 	games, err := h.gameService.ListGames(ctx)
 	if err != nil {
 		h.bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить список игр."))

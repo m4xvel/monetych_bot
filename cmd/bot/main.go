@@ -38,9 +38,13 @@ func main() {
 		log.Fatalf("failed to initialize bot: %v", err)
 	}
 
-	repo := postgres.NewGameRepo(pool)
-	gameService := usecase.NewGameService(repo)
-	handler := telegram.NewHandler(bot, gameService)
+	gameRepo := postgres.NewGameRepo(pool)
+	userRepo := postgres.NewUserRepo(pool)
+
+	gameService := usecase.NewGameService(gameRepo)
+	userService := usecase.NewUserService(userRepo)
+
+	handler := telegram.NewHandler(bot, gameService, userService)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60

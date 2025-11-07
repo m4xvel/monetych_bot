@@ -11,16 +11,21 @@ import (
 type Handler struct {
 	bot         *tgbotapi.BotAPI
 	gameService *usecase.GameService
+	userService *usecase.UserService
 	router      *Router
 
 	mu                  sync.Mutex
 	lastProcessedChatID map[int64]int
 }
 
-func NewHandler(bot *tgbotapi.BotAPI, gs *usecase.GameService) *Handler {
+func NewHandler(
+	bot *tgbotapi.BotAPI,
+	gs *usecase.GameService,
+	us *usecase.UserService) *Handler {
 	h := &Handler{
 		bot:                 bot,
 		gameService:         gs,
+		userService:         us,
 		router:              NewRouter(),
 		lastProcessedChatID: make(map[int64]int),
 	}
