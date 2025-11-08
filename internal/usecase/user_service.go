@@ -14,12 +14,17 @@ func NewUserService(repo domain.UserRepository) *UserService {
 	return &UserService{repo: repo}
 }
 
+func (s *UserService) VerifyUser(
+	ctx context.Context, userID int64) {
+	s.repo.VerifyUser(ctx, userID)
+}
+
 func (s *UserService) CheckStatusVerified(
-	ctx context.Context, userID int) bool {
+	ctx context.Context, userID int64) bool {
 	return s.repo.Is_verified(ctx, userID)
 }
 
 func (s *UserService) AddUserIfNotExists(
-	ctx context.Context, tgID int64) error {
-	return s.repo.AddUserIfNotExists(ctx, tgID)
+	ctx context.Context, userID int64) error {
+	return s.repo.AddUserIfNotExists(ctx, userID)
 }

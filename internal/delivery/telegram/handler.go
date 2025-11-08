@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -51,8 +52,19 @@ func (h *Handler) registerRoutes() {
 
 	h.router.RegisterCallback("game:", h.handleGameSelect)
 	h.router.RegisterCallback("type:", h.handleTypeSelect)
+	h.router.RegisterCallback("verify:", h.handleVerifySelect)
 }
 
 func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
 	h.router.Route(ctx, upd)
+}
+
+func (h *Handler) showInlineKeyboardVerification(chatID int64, text string, isVerifyAPI bool) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	verificationButton := tgbotapi.NewInlineKeyboardButtonData("Пройти верификацию", fmt.Sprintf("verify:%t", isVerifyAPI)) // Сюда Callback с API
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(verificationButton),
+	)
+	msg.ReplyMarkup = keyboard
+	h.bot.Send(msg)
 }

@@ -22,7 +22,6 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 	if len(parts) < 3 {
 		return
 	}
-	gameID := parts[1]
 	itemType := parts[2]
 
 	editText := tgbotapi.NewEditMessageText(
@@ -32,6 +31,13 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 	)
 	_, _ = h.bot.Request(editText)
 
-	msg := fmt.Sprintf("Вы выбрали игру ID=%s и тип=%s ✅", gameID, itemType)
-	h.bot.Send(tgbotapi.NewMessage(chatID, msg))
+	isVerified := h.userService.CheckStatusVerified(ctx, chatID)
+	if !isVerified {
+		h.showInlineKeyboardVerification(
+			chatID,
+			"Для безопасной сделки необходимо подтвердить вашу личность. Это просто и не займет много времени:",
+			false,
+		)
+		return
+	}
 }
