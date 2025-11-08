@@ -33,9 +33,10 @@ func (h *Handler) handleVerifySelect(ctx context.Context, cb *tgbotapi.CallbackQ
 			"✅ Ваша личность подтверждена!",
 		)
 		_, _ = h.bot.Request(editText)
+
+		h.contactAnAppraiser(chatID)
 		return
 	}
-	h.userService.VerifyUser(ctx, chatID)
 	deleteMsg := tgbotapi.NewDeleteMessage(chatID, messageID)
 	h.bot.Send(deleteMsg)
 	h.showInlineKeyboardVerification(

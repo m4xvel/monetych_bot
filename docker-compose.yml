@@ -1,0 +1,13 @@
+services:
+  monetych_bot-postgres:
+    image: postgres
+    container_name: monetych_bot-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - monetych_bot-postgres_data:/var/lib/postgresql/data
+  
+volumes:
+  monetych_bot-postgres_data:

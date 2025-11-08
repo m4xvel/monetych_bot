@@ -40,11 +40,18 @@ func main() {
 
 	gameRepo := postgres.NewGameRepo(pool)
 	userRepo := postgres.NewUserRepo(pool)
+	orderRepo := postgres.NewOrderRepo(pool)
 
 	gameService := usecase.NewGameService(gameRepo)
 	userService := usecase.NewUserService(userRepo)
+	orderService := usecase.NewOrderService(orderRepo)
 
-	handler := telegram.NewHandler(bot, gameService, userService)
+	handler := telegram.NewHandler(
+		bot,
+		gameService,
+		userService,
+		orderService,
+	)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60

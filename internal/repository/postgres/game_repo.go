@@ -42,7 +42,13 @@ func (r *GameRepo) GetAll(ctx context.Context) ([]domain.Game, error) {
 func (r *GameRepo) GetGameTypeByID(
 	ctx context.Context,
 	gameID int) ([]string, error) {
-	rows, err := r.pool.Query(ctx, "SELECT gt.name FROM game_types gt JOIN game_type_links gtl ON gtl.type_id = gt.id JOIN games g ON g.id = gtl.game_id WHERE g.id = $1", gameID)
+	rows, err := r.pool.Query(ctx,
+		`SELECT gt.name 
+		FROM game_types gt 
+		JOIN game_type_links gtl 
+		ON gtl.type_id = gt.id 
+		JOIN games g ON g.id = gtl.game_id 
+		WHERE g.id = $1`, gameID)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to request game types: %w", err)
 	}

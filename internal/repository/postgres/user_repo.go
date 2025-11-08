@@ -15,14 +15,16 @@ func NewUserRepo(pool *pgxpool.Pool) *UserRepo {
 }
 
 func (r *UserRepo) AddUserIfNotExists(ctx context.Context, userID int64) error {
-	query := "INSERT INTO users (tg_id) VALUES ($1) ON CONFLICT (tg_id) DO NOTHING"
+	query :=
+		`INSERT INTO users (tg_id) 
+	VALUES ($1) ON CONFLICT (tg_id) DO NOTHING`
 
 	_, err := r.pool.Exec(ctx, query, userID)
 	return err
 }
 
 func (r *UserRepo) VerifyUser(ctx context.Context, userID int64) error {
-	query := "UPDATE users SET is_verified = TRUE WHERE tg_id =$1"
+	query := `UPDATE users SET is_verified = TRUE WHERE tg_id =$1`
 
 	_, err := r.pool.Exec(ctx, query, userID)
 	return err
