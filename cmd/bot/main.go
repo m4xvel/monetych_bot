@@ -41,16 +41,19 @@ func main() {
 	gameRepo := postgres.NewGameRepo(pool)
 	userRepo := postgres.NewUserRepo(pool)
 	orderRepo := postgres.NewOrderRepo(pool)
+	assessorRepo := postgres.NewAssessorRepo(pool)
 
 	gameService := usecase.NewGameService(gameRepo)
 	userService := usecase.NewUserService(userRepo)
 	orderService := usecase.NewOrderService(orderRepo)
+	assessorService := usecase.NewAssessorService(assessorRepo)
 
 	handler := telegram.NewHandler(
 		bot,
 		gameService,
 		userService,
 		orderService,
+		assessorService,
 	)
 
 	u := tgbotapi.NewUpdate(0)

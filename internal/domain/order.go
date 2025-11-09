@@ -11,6 +11,7 @@ type Order struct {
 
 type OrderRepository interface {
 	Create(ctx context.Context, order Order) (int, error)
+	Accept(ctx context.Context, appraiserID int64, orderID int, status string) error
 	GetByUser(ctx context.Context, userID int64) (*Order, error)
 	UpdateStatus(ctx context.Context, id int, status string) error
 }

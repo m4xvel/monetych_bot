@@ -42,7 +42,7 @@ func (h *Handler) handleGameSelect(
 
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, t := range types {
-		data := fmt.Sprintf("type:%d:%s", gameID, t)
+		data := fmt.Sprintf("type:%s:%s", gameName, t)
 		btn := tgbotapi.NewInlineKeyboardButtonData(t, data)
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}

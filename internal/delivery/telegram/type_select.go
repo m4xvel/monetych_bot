@@ -22,6 +22,7 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 	if len(parts) < 3 {
 		return
 	}
+	itemGame := parts[1]
 	itemType := parts[2]
 
 	editText := tgbotapi.NewEditMessageText(
@@ -37,9 +38,11 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 			chatID,
 			"Для безопасной сделки необходимо подтвердить вашу личность. Это просто и не займет много времени:",
 			false,
+			itemGame,
+			itemType,
 		)
 		return
 	}
 
-	h.contactAnAppraiser(chatID)
+	h.contactAnAppraiser(chatID, itemGame, itemType)
 }

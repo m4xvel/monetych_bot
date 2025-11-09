@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/m4xvel/monetych_bot/internal/domain"
 )
@@ -15,13 +16,19 @@ func NewOrderService(repo domain.OrderRepository) *OrderService {
 	return &OrderService{repo: repo}
 }
 
-func (s *OrderService) CreateOrder(ctx context.Context, userID, appraiserID int64) (int, error) {
+func (s *OrderService) CreateOrder(ctx context.Context, userID int64) (int, error) {
 	order := domain.Order{
-		UserID:      userID,
-		AppraiserID: appraiserID,
-		Status:      "active",
+		UserID: userID,
+		Status: "pending",
 	}
 	return s.repo.Create(ctx, order)
+}
+
+func (s *OrderService) Accept(ctx context.Context, appraiserID int64, orderID int) error {
+	if err := s.repo.Accept(ctx, appraiserID, orderID, "active"); err != nil {
+		return fmt.Errorf("failed to accept order: %w", err)
+	}
+	return nil
 }
 
 func (s *OrderService) GetUserOrder(ctx context.Context, userID int64) (*domain.Order, error) {
