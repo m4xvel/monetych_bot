@@ -2,8 +2,8 @@ package telegram
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -88,19 +88,35 @@ func (h *Handler) contactAnAppraiser(chatID int64, nameGame, nameType string) {
 	h.bot.Send(msg)
 }
 
-func (h *Handler) notifyAssessorsAboutOrder(
-	ctx context.Context, orderID int, nameGame, nameType string, userID int64, messageUserId int) {
-	tgIDs, err := h.assessorService.GetAllAssessorTgIDs(ctx)
+func (h *Handler) createForumTopic(
+	ctx context.Context,
+	topicName string,
+	assessorID int64,
+) (int64, error) {
+	chatID := h.assessorService.GetTopicIDByTgID(ctx, assessorID)
+	params := tgbotapi.Params{
+		"chat_id": fmt.Sprint(chatID),
+		"name":    topicName,
+	}
+
+	resp, err := h.bot.MakeRequest("createForumTopic", params)
 	if err != nil {
-		log.Printf("failed to get assessors: %v", err)
-		return
+		return 0, fmt.Errorf("createForumTopic failed: %w", err)
 	}
-	for _, tgID := range tgIDs {
-		msg := tgbotapi.NewMessage(tgID, fmt.Sprintf("Новая заявка #%d: %s, %s", orderID, nameGame, nameType))
-		button := tgbotapi.NewInlineKeyboardButtonData("Принять", fmt.Sprintf("accept:%d:%s:%s:%d:%d", orderID, nameGame, nameType, userID, messageUserId))
-		keyboard := tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(button))
-		msg.ReplyMarkup = keyboard
-		h.bot.Send(msg)
+	var result struct {
+		Ok     bool `json:"ok"`
+		Result struct {
+			MessageThreadID int64 `json:"message_thread_id"`
+		} `json:"result"`
 	}
+
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		return 0, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if !result.Ok {
+		return 0, fmt.Errorf("telegram API returned not ok")
+	}
+
+	return result.Result.MessageThreadID, nil
 }

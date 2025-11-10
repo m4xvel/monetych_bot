@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
 type OrderService struct {
 	repo domain.OrderRepository
+	bot  *tgbotapi.BotAPI
 }
 
 func NewOrderService(repo domain.OrderRepository) *OrderService {

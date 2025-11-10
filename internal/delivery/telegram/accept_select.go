@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -32,22 +33,32 @@ func (h *Handler) handleAcceptSelect(
 
 	h.orderService.Accept(ctx, chatID, orderID)
 
-	editText := tgbotapi.NewEditMessageText(
-		chatID,
-		cb.Message.MessageID,
-		fmt.Sprintf("Вы приняли заявку #%d ✅ (%s, %s)",
-			orderID, itemGame, itemType),
-	)
-	_, _ = h.bot.Request(editText)
+	sentOrders := orderMessages[orderID]
+	for _, sent := range sentOrders {
+		deleteMsg := tgbotapi.NewDeleteMessage(sent.ChatID, sent.MessageID)
+		if _, err := h.bot.Request(deleteMsg); err != nil {
+			log.Println("Ошибка удаления сообщения:", err)
+		}
+	}
 
-	h.bot.Send(tgbotapi.NewMessage(chatID,
-		"Перейдите в чат, чтобы продолжить..."),
+	delete(orderMessages, orderID)
+
+	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
+		"Вы приняли заявку #%d ✅\n(%s, %s)",
+		orderID, itemGame, itemType),
+	)
+	h.bot.Send(msg)
+
+	h.createForumTopic(
+		ctx,
+		fmt.Sprintf("💼 Сделка #%d - (%s, %s)", orderID, itemGame, itemType),
+		chatID,
 	)
 
 	editTextUser := tgbotapi.NewEditMessageText(
 		userID,
 		messageUserId,
-		"Оценщик принял Вашу заявку ✅\nПерейдите в чат, чтобы продолжить...",
+		"✅ Оценщик принял Вашу заявку, продолжайте общаться в этом чате!",
 	)
 	_, _ = h.bot.Request(editTextUser)
 

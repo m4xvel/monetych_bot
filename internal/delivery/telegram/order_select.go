@@ -2,10 +2,43 @@ package telegram
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+type SentOrder struct {
+	ChatID    int64
+	MessageID int
+}
+
+var orderMessages = map[int][]SentOrder{}
+
+func (h *Handler) notifyAssessorsAboutOrder(
+	ctx context.Context, orderID int, nameGame, nameType string, userID int64, messageUserId int) {
+	tgIDs, err := h.assessorService.GetAllAssessorTgIDs(ctx)
+	if err != nil {
+		log.Printf("failed to get assessors: %v", err)
+		return
+	}
+	for _, tgID := range tgIDs {
+		msg := tgbotapi.NewMessage(tgID, fmt.Sprintf("Новая заявка #%d: %s, %s", orderID, nameGame, nameType))
+		button := tgbotapi.NewInlineKeyboardButtonData(
+			"Принять",
+			fmt.Sprintf("accept:%d:%s:%s:%d:%d", orderID, nameGame, nameType, userID, messageUserId),
+		)
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(button),
+		)
+		sentMsg, _ := h.bot.Send(msg)
+		orderMessages[orderID] = append(orderMessages[orderID], SentOrder{
+			ChatID:    sentMsg.Chat.ID,
+			MessageID: sentMsg.MessageID,
+		})
+	}
+}
 
 func (h *Handler) handleOrderSelect(ctx context.Context, cb *tgbotapi.CallbackQuery) {
 	chatID := cb.Message.Chat.ID
@@ -32,7 +65,7 @@ func (h *Handler) handleOrderSelect(ctx context.Context, cb *tgbotapi.CallbackQu
 	editText := tgbotapi.NewEditMessageText(
 		chatID,
 		cb.Message.MessageID,
-		"Оценщик уже спешит к Вам ⏳",
+		"⏳ Оценщик уже спешит к Вам",
 	)
 	_, _ = h.bot.Request(editText)
 

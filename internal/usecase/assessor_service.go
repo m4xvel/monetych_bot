@@ -28,3 +28,14 @@ func (s *AssessorService) GetAllAssessorTgIDs(ctx context.Context) ([]int64, err
 
 	return tgIDs, nil
 }
+
+func (s *AssessorService) GetTopicIDByTgID(
+	ctx context.Context,
+	assessorID int64,
+) int64 {
+	topicID, err := s.repo.GetTopicIDByTgID(ctx, assessorID)
+	if err != nil {
+		return 0
+	}
+	return topicID
+}
