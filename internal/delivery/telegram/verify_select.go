@@ -36,7 +36,7 @@ func (h *Handler) handleVerifySelect(ctx context.Context, cb *tgbotapi.CallbackQ
 		)
 		_, _ = h.bot.Request(editText)
 
-		h.contactAnAppraiser(chatID, itemGame, itemType)
+		h.contactAnAppraiser(ctx, chatID, itemGame, itemType)
 		return
 	}
 	deleteMsg := tgbotapi.NewDeleteMessage(chatID, messageID)

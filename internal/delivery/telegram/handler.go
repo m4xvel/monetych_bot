@@ -62,6 +62,8 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("verify:", h.handleVerifySelect)
 	h.router.RegisterCallback("order:", h.handleOrderSelect)
 	h.router.RegisterCallback("accept:", h.handleAcceptSelect)
+
+	h.router.RegisterMessageHandler(h.handleClientMessage)
 }
 
 func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
@@ -78,7 +80,13 @@ func (h *Handler) showInlineKeyboardVerification(chatID int64, text string, isVe
 	h.bot.Send(msg)
 }
 
-func (h *Handler) contactAnAppraiser(chatID int64, nameGame, nameType string) {
+func (h *Handler) contactAnAppraiser(ctx context.Context, chatID int64, nameGame, nameType string) {
+	order, _ := h.orderService.GetActiveByClient(ctx, chatID)
+	if order != nil && order.Status != "completed" && order.Status != "closed" {
+		h.bot.Send(tgbotapi.NewMessage(chatID, "У вас уже есть активная заявка!"))
+		return
+	}
+
 	msg := tgbotapi.NewMessage(chatID, "Свяжитесь с оценщиком 📩")
 	verificationButton := tgbotapi.NewInlineKeyboardButtonData("Связаться 💬", fmt.Sprintf("order:%s:%s", nameGame, nameType))
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
@@ -103,20 +111,17 @@ func (h *Handler) createForumTopic(
 	if err != nil {
 		return 0, fmt.Errorf("createForumTopic failed: %w", err)
 	}
-	var result struct {
-		Ok     bool `json:"ok"`
-		Result struct {
-			MessageThreadID int64 `json:"message_thread_id"`
-		} `json:"result"`
+
+	if !resp.Ok {
+		return 0, fmt.Errorf("telegram api error: %s", resp.Description)
 	}
 
-	if err := json.Unmarshal(resp.Result, &result); err != nil {
+	var topic struct {
+		MessageThreadID int64 `json:"message_thread_id"`
+	}
+	if err := json.Unmarshal(resp.Result, &topic); err != nil {
 		return 0, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	if !result.Ok {
-		return 0, fmt.Errorf("telegram API returned not ok")
-	}
-
-	return result.Result.MessageThreadID, nil
+	return topic.MessageThreadID, nil
 }

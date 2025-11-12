@@ -31,8 +31,6 @@ func (h *Handler) handleAcceptSelect(
 
 	_, _ = h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
 
-	h.orderService.Accept(ctx, chatID, orderID)
-
 	sentOrders := orderMessages[orderID]
 	for _, sent := range sentOrders {
 		deleteMsg := tgbotapi.NewDeleteMessage(sent.ChatID, sent.MessageID)
@@ -49,11 +47,13 @@ func (h *Handler) handleAcceptSelect(
 	)
 	h.bot.Send(msg)
 
-	h.createForumTopic(
+	threadID, _ := h.createForumTopic(
 		ctx,
 		fmt.Sprintf("💼 Сделка #%d - (%s, %s)", orderID, itemGame, itemType),
 		chatID,
 	)
+	topicID := h.assessorService.GetTopicIDByTgID(ctx, chatID)
+	h.orderService.Accept(ctx, chatID, orderID, topicID, threadID)
 
 	editTextUser := tgbotapi.NewEditMessageText(
 		userID,
@@ -61,5 +61,4 @@ func (h *Handler) handleAcceptSelect(
 		"✅ Оценщик принял Вашу заявку, продолжайте общаться в этом чате!",
 	)
 	_, _ = h.bot.Request(editTextUser)
-
 }

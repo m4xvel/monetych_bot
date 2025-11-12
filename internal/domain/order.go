@@ -7,11 +7,13 @@ type Order struct {
 	UserID      int64
 	AppraiserID int64
 	Status      string
+	TopicID     int64
+	ThreadID    int64
 }
 
 type OrderRepository interface {
 	Create(ctx context.Context, order Order) (int, error)
-	Accept(ctx context.Context, appraiserID int64, orderID int, status string) error
+	Accept(ctx context.Context, appraiserID int64, orderID int, status string, topicID, threadID int64) error
 	GetByUser(ctx context.Context, userID int64) (*Order, error)
 	UpdateStatus(ctx context.Context, id int, status string) error
 }

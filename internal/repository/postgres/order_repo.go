@@ -27,13 +27,19 @@ func (r *OrderRepo) Create(ctx context.Context, order domain.Order) (int, error)
 	return id, nil
 }
 
-func (r *OrderRepo) Accept(ctx context.Context, appraiserID int64, orderID int, status string) error {
+func (r *OrderRepo) Accept(
+	ctx context.Context,
+	appraiserID int64,
+	orderID int,
+	status string,
+	topicID, threadID int64,
+) error {
 	query := `
 	UPDATE orders 
-	SET appraiser_id = $1, status = $2, updated_at = now()
-	WHERE id = $3`
+	SET appraiser_id = $1, status = $2, updated_at = now(), topic_id = $3, thread_id = $4
+	WHERE id = $5`
 
-	_, err := r.pool.Exec(ctx, query, appraiserID, status, orderID)
+	_, err := r.pool.Exec(ctx, query, appraiserID, status, topicID, threadID, orderID)
 	if err != nil {
 		return fmt.Errorf("Accept order: %w", err)
 	}
@@ -42,17 +48,23 @@ func (r *OrderRepo) Accept(ctx context.Context, appraiserID int64, orderID int, 
 
 func (r *OrderRepo) GetByUser(ctx context.Context, userID int64) (*domain.Order, error) {
 	query := `
-	SELECT (id, user_id, appraiser_id, status) 
+	SELECT id, user_id, appraiser_id, status, topic_id, thread_id
 	FROM orders 
-	WHERE (user_id = $1 OR appraiser_id= $1)
+	WHERE user_id = $1
 	AND status = 'active'
 	LIMIT 1`
 
 	var d domain.Order
-	if err := r.pool.QueryRow(ctx, query, userID).Scan(
-		&d.ID, &d.UserID, &d.AppraiserID, &d.Status,
-	); err != nil {
-		return nil, fmt.Errorf("get by user: %w", err)
+	err := r.pool.QueryRow(ctx, query, userID).Scan(
+		&d.ID,
+		&d.UserID,
+		&d.AppraiserID,
+		&d.Status,
+		&d.TopicID,
+		&d.ThreadID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get order status: %w", err)
 	}
 	return &d, nil
 }

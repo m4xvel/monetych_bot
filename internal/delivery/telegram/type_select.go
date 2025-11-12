@@ -44,5 +44,5 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 		return
 	}
 
-	h.contactAnAppraiser(chatID, itemGame, itemType)
+	h.contactAnAppraiser(ctx, chatID, itemGame, itemType)
 }

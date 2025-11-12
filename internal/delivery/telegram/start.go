@@ -8,8 +8,8 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func (h *Handler) handleStartCommand(ctx context.Context, upd tgbotapi.Update) {
-	chatID := upd.Message.Chat.ID
+func (h *Handler) handleStartCommand(ctx context.Context, msg *tgbotapi.Message) {
+	chatID := msg.Chat.ID
 
 	err := h.userService.AddUserIfNotExists(ctx, chatID)
 	if err != nil {
@@ -35,7 +35,7 @@ func (h *Handler) handleStartCommand(ctx context.Context, upd tgbotapi.Update) {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}
 
-	msg := tgbotapi.NewMessage(chatID, "Выберите игру 🎮")
-	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
-	h.bot.Send(msg)
+	message := tgbotapi.NewMessage(chatID, "Выберите игру 🎮")
+	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+	h.bot.Send(message)
 }
