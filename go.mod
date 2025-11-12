@@ -16,3 +16,5 @@ require (
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 )
+
+replace github.com/go-telegram-bot-api/telegram-bot-api/v5 => ./telegram-bot-api

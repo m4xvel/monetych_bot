@@ -49,3 +49,11 @@ func (s *OrderService) GetActiveByClient(ctx context.Context, userID int64) (*do
 	}
 	return order, nil
 }
+
+func (s *OrderService) GetActiveByThread(ctx context.Context, topicID, threadID int64) (*domain.Order, error) {
+	order, err := s.repo.GetByThread(ctx, topicID, threadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get order: %w", err)
+	}
+	return order, nil
+}

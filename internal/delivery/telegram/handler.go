@@ -63,7 +63,7 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("order:", h.handleOrderSelect)
 	h.router.RegisterCallback("accept:", h.handleAcceptSelect)
 
-	h.router.RegisterMessageHandler(h.handleClientMessage)
+	h.router.RegisterMessageHandler(h.handleMessage)
 }
 
 func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {

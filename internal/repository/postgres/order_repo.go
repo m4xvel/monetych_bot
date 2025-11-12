@@ -54,19 +54,43 @@ func (r *OrderRepo) GetByUser(ctx context.Context, userID int64) (*domain.Order,
 	AND status = 'active'
 	LIMIT 1`
 
-	var d domain.Order
+	var o domain.Order
 	err := r.pool.QueryRow(ctx, query, userID).Scan(
-		&d.ID,
-		&d.UserID,
-		&d.AppraiserID,
-		&d.Status,
-		&d.TopicID,
-		&d.ThreadID,
+		&o.ID,
+		&o.UserID,
+		&o.AppraiserID,
+		&o.Status,
+		&o.TopicID,
+		&o.ThreadID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get order status: %w", err)
 	}
-	return &d, nil
+	return &o, nil
+}
+
+func (r *OrderRepo) GetByThread(ctx context.Context, topicID, threadID int64) (*domain.Order, error) {
+	query := `
+	SELECT id, user_id, appraiser_id, status, topic_id, thread_id
+	FROM orders
+	WHERE topic_id = $1 
+	AND thread_id = $2
+	AND status = 'active'
+	LIMIT 1`
+
+	var o domain.Order
+	err := r.pool.QueryRow(ctx, query, topicID, threadID).Scan(
+		&o.ID,
+		&o.UserID,
+		&o.AppraiserID,
+		&o.Status,
+		&o.TopicID,
+		&o.ThreadID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get order status: %w", err)
+	}
+	return &o, nil
 }
 
 func (r *OrderRepo) UpdateStatus(ctx context.Context, id int, status string) error {

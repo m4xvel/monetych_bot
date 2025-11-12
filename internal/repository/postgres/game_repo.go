@@ -50,7 +50,7 @@ func (r *GameRepo) GetGameTypeByID(
 		JOIN games g ON g.id = gtl.game_id 
 		WHERE g.id = $1`, gameID)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to request game types: %w", err)
+		return nil, fmt.Errorf("failed to request game types: %w", err)
 	}
 	defer rows.Close()
 	var types []string
