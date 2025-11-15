@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -29,36 +28,48 @@ func (h *Handler) handleAcceptSelect(
 	userID, _ := strconv.ParseInt(parts[4], 10, 64)
 	messageUserId, _ := strconv.Atoi(parts[5])
 
-	_, _ = h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
 
 	sentOrders := orderMessages[orderID]
 	for _, sent := range sentOrders {
 		deleteMsg := tgbotapi.NewDeleteMessage(sent.ChatID, sent.MessageID)
-		if _, err := h.bot.Request(deleteMsg); err != nil {
-			log.Println("Ошибка удаления сообщения:", err)
-		}
+		h.bot.Request(deleteMsg)
 	}
 
 	delete(orderMessages, orderID)
 
-	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf(
-		"Вы приняли заявку #%d ✅\n(%s, %s)",
-		orderID, itemGame, itemType),
+	msg := tgbotapi.NewMessage(
+		chatID,
+		h.textDynamic.AssessorAcceptedOrder(orderID, itemGame, itemType),
 	)
 	h.bot.Send(msg)
 
 	threadID, _ := h.createForumTopic(
 		ctx,
-		fmt.Sprintf("💼 Сделка #%d - (%s, %s)", orderID, itemGame, itemType),
+		h.textDynamic.TitleOrderTopic(orderID, itemGame, itemType),
 		chatID,
 	)
 	topicID := h.assessorService.GetTopicIDByTgID(ctx, chatID)
 	h.orderService.Accept(ctx, chatID, orderID, topicID, threadID)
-
-	editTextUser := tgbotapi.NewEditMessageText(
+	h.sendOrderControlPanel(topicID, threadID, orderID)
+	h.bot.Request(tgbotapi.NewDeleteMessage(userID, messageUserId))
+	h.bot.Send(tgbotapi.NewMessage(
 		userID,
-		messageUserId,
-		"✅ Оценщик принял Вашу заявку, продолжайте общаться в этом чате!",
+		h.text.AssessorAcceptedYourOrder,
+	))
+}
+
+func (h *Handler) sendOrderControlPanel(topicID int64, threadID int64, orderID int) {
+	btnAccept := tgbotapi.NewInlineKeyboardButtonData(h.text.AcceptText, fmt.Sprintf("order_accept:%d", orderID))
+	btnDecline := tgbotapi.NewInlineKeyboardButtonData(h.text.DeclineText, fmt.Sprintf("order_decline:%d", orderID))
+
+	markup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(btnAccept, btnDecline),
 	)
-	_, _ = h.bot.Request(editTextUser)
+
+	msg := tgbotapi.NewMessage(topicID, h.text.ApplicationManagementText)
+	msg.MessageThreadID = threadID
+	msg.ReplyMarkup = markup
+
+	h.bot.Send(msg)
 }

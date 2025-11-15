@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -16,7 +15,7 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 		return
 	}
 
-	_, _ = h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
 
 	parts := strings.Split(cb.Data, ":")
 	if len(parts) < 3 {
@@ -28,15 +27,15 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 	editText := tgbotapi.NewEditMessageText(
 		chatID,
 		cb.Message.MessageID,
-		fmt.Sprintf("📦 Вы выбрали: %s", itemType),
+		h.textDynamic.YouHaveChosenType(itemType),
 	)
-	_, _ = h.bot.Request(editText)
+	h.bot.Request(editText)
 
 	isVerified := h.userService.CheckStatusVerified(ctx, chatID)
 	if !isVerified {
 		h.showInlineKeyboardVerification(
 			chatID,
-			"Для безопасной сделки необходимо подтвердить вашу личность. Это просто и не займет много времени:",
+			h.text.YouNeedToVerify,
 			false,
 			itemGame,
 			itemType,

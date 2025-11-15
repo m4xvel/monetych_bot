@@ -34,7 +34,7 @@ func (h *Handler) handleAssessorMessage(ctx context.Context, msg *tgbotapi.Messa
 }
 
 func (h *Handler) handleUserMessage(ctx context.Context, msg *tgbotapi.Message) {
-	order, err := h.orderService.GetActiveByClient(ctx, msg.From.ID)
+	order, err := h.orderService.GetActiveByClient(ctx, msg.From.ID, "active")
 	if err != nil {
 		log.Println("failed to get order by client:", err)
 		return
@@ -46,10 +46,10 @@ func (h *Handler) handleUserMessage(ctx context.Context, msg *tgbotapi.Message) 
 
 func (h *Handler) forwardToAssessor(order *domain.Order, msg *tgbotapi.Message) {
 	params := tgbotapi.Params{
-		"chat_id":           fmt.Sprint(order.TopicID),
+		"chat_id":           int64PtrToStr(order.TopicID),
 		"from_chat_id":      fmt.Sprint(msg.Chat.ID),
 		"message_id":        fmt.Sprint(msg.MessageID),
-		"message_thread_id": fmt.Sprint(order.ThreadID),
+		"message_thread_id": int64PtrToStr(order.ThreadID),
 	}
 	h.bot.MakeRequest("copyMessage", params)
 }
@@ -61,4 +61,11 @@ func (h *Handler) forwardToUser(order *domain.Order, msg *tgbotapi.Message) {
 		"message_id":   fmt.Sprint(msg.MessageID),
 	}
 	h.bot.MakeRequest("copyMessage", params)
+}
+
+func int64PtrToStr(v *int64) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprint(*v)
 }

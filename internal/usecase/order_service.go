@@ -42,8 +42,8 @@ func (s *OrderService) Accept(
 	return nil
 }
 
-func (s *OrderService) GetActiveByClient(ctx context.Context, userID int64) (*domain.Order, error) {
-	order, err := s.repo.GetByUser(ctx, userID)
+func (s *OrderService) GetActiveByClient(ctx context.Context, userID int64, status string) (*domain.Order, error) {
+	order, err := s.repo.GetByUser(ctx, userID, status)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order: %w", err)
 	}
@@ -56,4 +56,13 @@ func (s *OrderService) GetActiveByThread(ctx context.Context, topicID, threadID 
 		return nil, fmt.Errorf("failed to get order: %w", err)
 	}
 	return order, nil
+}
+
+func (s *OrderService) GetOrderByID(ctx context.Context, id int) *domain.Order {
+	order, _ := s.repo.GetByID(ctx, id)
+	return order
+}
+
+func (s *OrderService) UpdateStatus(ctx context.Context, id int, status string) {
+	s.repo.UpdateStatus(ctx, id, status)
 }

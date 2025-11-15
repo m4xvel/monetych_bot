@@ -16,7 +16,7 @@ func (h *Handler) handleVerifySelect(ctx context.Context, cb *tgbotapi.CallbackQ
 		return
 	}
 
-	_, _ = h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
 
 	parts := strings.Split(cb.Data, ":")
 	if len(parts) < 4 {
@@ -32,9 +32,9 @@ func (h *Handler) handleVerifySelect(ctx context.Context, cb *tgbotapi.CallbackQ
 		editText := tgbotapi.NewEditMessageText(
 			chatID,
 			cb.Message.MessageID,
-			"✅ Ваша личность подтверждена!",
+			h.text.SuccessfulVerify,
 		)
-		_, _ = h.bot.Request(editText)
+		h.bot.Request(editText)
 
 		h.contactAnAppraiser(ctx, chatID, itemGame, itemType)
 		return
@@ -43,7 +43,7 @@ func (h *Handler) handleVerifySelect(ctx context.Context, cb *tgbotapi.CallbackQ
 	h.bot.Send(deleteMsg)
 	h.showInlineKeyboardVerification(
 		chatID,
-		"❌ Вы не прошли верификацию, попробуйте снова!",
+		h.text.FailedVerify,
 		true,
 		itemGame,
 		itemType,

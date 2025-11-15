@@ -18,7 +18,7 @@ func (h *Handler) handleGameSelect(
 		return
 	}
 
-	_, _ = h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
 
 	parts := strings.Split(cb.Data, ":")
 	if len(parts) < 3 {
@@ -30,15 +30,11 @@ func (h *Handler) handleGameSelect(
 	editText := tgbotapi.NewEditMessageText(
 		chatID,
 		cb.Message.MessageID,
-		fmt.Sprintf("🎮 Вы выбрали: %s", gameName),
+		h.textDynamic.YouHaveChosenGame(gameName),
 	)
-	_, _ = h.bot.Request(editText)
+	h.bot.Request(editText)
 
-	types, err := h.gameService.ListGameTypes(ctx, gameID)
-	if err != nil {
-		h.bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка загрузки типов."))
-		return
-	}
+	types, _ := h.gameService.ListGameTypes(ctx, gameID)
 
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, t := range types {
@@ -47,7 +43,7 @@ func (h *Handler) handleGameSelect(
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}
 
-	msg := tgbotapi.NewMessage(chatID, "Выберите тип 📦")
+	msg := tgbotapi.NewMessage(chatID, h.text.ChooseType)
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
 	h.bot.Send(msg)
 }

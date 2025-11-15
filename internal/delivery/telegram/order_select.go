@@ -24,7 +24,7 @@ func (h *Handler) notifyAssessorsAboutOrder(
 		return
 	}
 	for _, tgID := range tgIDs {
-		msg := tgbotapi.NewMessage(tgID, fmt.Sprintf("Новая заявка #%d: %s, %s", orderID, nameGame, nameType))
+		msg := tgbotapi.NewMessage(tgID, h.textDynamic.NewOrder(orderID, nameGame, nameType))
 		button := tgbotapi.NewInlineKeyboardButtonData(
 			"Принять",
 			fmt.Sprintf("accept:%d:%s:%s:%d:%d", orderID, nameGame, nameType, userID, messageUserId),
@@ -56,7 +56,7 @@ func (h *Handler) handleOrderSelect(ctx context.Context, cb *tgbotapi.CallbackQu
 	itemGame := parts[1]
 	itemType := parts[2]
 
-	_, _ = h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
 
 	id, _ := h.orderService.CreateOrder(ctx, chatID)
 
@@ -65,8 +65,8 @@ func (h *Handler) handleOrderSelect(ctx context.Context, cb *tgbotapi.CallbackQu
 	editText := tgbotapi.NewEditMessageText(
 		chatID,
 		cb.Message.MessageID,
-		"⏳ Оценщик уже спешит к Вам",
+		h.text.WaitingAssessor,
 	)
-	_, _ = h.bot.Request(editText)
+	h.bot.Request(editText)
 
 }

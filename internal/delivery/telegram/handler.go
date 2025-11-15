@@ -8,6 +8,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/usecase"
+	"github.com/m4xvel/monetych_bot/pkg/utils"
 )
 
 type Handler struct {
@@ -17,6 +18,8 @@ type Handler struct {
 	orderService    *usecase.OrderService
 	assessorService *usecase.AssessorService
 	router          *Router
+	text            *utils.Messages
+	textDynamic     *utils.Dynamic
 
 	mu                  sync.Mutex
 	lastProcessedChatID map[int64]int
@@ -34,10 +37,19 @@ func NewHandler(
 		userService:         us,
 		orderService:        os,
 		assessorService:     as,
+		text:                utils.NewMessages(),
+		textDynamic:         utils.NewDynamic(),
 		router:              NewRouter(),
 		lastProcessedChatID: make(map[int64]int),
 	}
 
+	// commands := []tgbotapi.BotCommand{
+	// 	{Command: "start", Description: "Запуск бота"},
+	// 	{Command: "help", Description: "Помощь"},
+	// 	{Command: "order", Description: "Создать заказ"},
+	// }
+
+	// bot.Request(tgbotapi.NewSetMyCommands(commands...))
 	h.registerRoutes()
 	return h
 }
@@ -62,6 +74,9 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("verify:", h.handleVerifySelect)
 	h.router.RegisterCallback("order:", h.handleOrderSelect)
 	h.router.RegisterCallback("accept:", h.handleAcceptSelect)
+	h.router.RegisterCallback("order_accept:", h.handleOrderAcceptAssessor)
+	h.router.RegisterCallback("order_decline:", h.handleOrderDeclineAssessor)
+	h.router.RegisterCallback("order_accept_client:", h.handleOrderAcceptClient)
 
 	h.router.RegisterMessageHandler(h.handleMessage)
 }
@@ -72,7 +87,7 @@ func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
 
 func (h *Handler) showInlineKeyboardVerification(chatID int64, text string, isVerifyAPI bool, nameGame, nameType string) {
 	msg := tgbotapi.NewMessage(chatID, text)
-	verificationButton := tgbotapi.NewInlineKeyboardButtonData("Пройти верификацию", fmt.Sprintf("verify:%t:%s:%s", isVerifyAPI, nameGame, nameType)) // Сюда Callback с API
+	verificationButton := tgbotapi.NewInlineKeyboardButtonData(h.text.VerifyButtonText, fmt.Sprintf("verify:%t:%s:%s", isVerifyAPI, nameGame, nameType)) // Сюда Callback с API
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(verificationButton),
 	)
@@ -81,14 +96,15 @@ func (h *Handler) showInlineKeyboardVerification(chatID int64, text string, isVe
 }
 
 func (h *Handler) contactAnAppraiser(ctx context.Context, chatID int64, nameGame, nameType string) {
-	order, _ := h.orderService.GetActiveByClient(ctx, chatID)
-	if order != nil && order.Status != "completed" && order.Status != "closed" {
-		h.bot.Send(tgbotapi.NewMessage(chatID, "У вас уже есть активная заявка!"))
+	orderNew, _ := h.orderService.GetActiveByClient(ctx, chatID, "new")
+	orderActive, _ := h.orderService.GetActiveByClient(ctx, chatID, "active")
+	if orderNew != nil || orderActive != nil {
+		h.bot.Send(tgbotapi.NewMessage(chatID, h.text.AlreadyActiveOrder))
 		return
 	}
 
-	msg := tgbotapi.NewMessage(chatID, "Свяжитесь с оценщиком 📩")
-	verificationButton := tgbotapi.NewInlineKeyboardButtonData("Связаться 💬", fmt.Sprintf("order:%s:%s", nameGame, nameType))
+	msg := tgbotapi.NewMessage(chatID, h.text.ContactAppraiserText)
+	verificationButton := tgbotapi.NewInlineKeyboardButtonData(h.text.ContactText, fmt.Sprintf("order:%s:%s", nameGame, nameType))
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(verificationButton),
 	)

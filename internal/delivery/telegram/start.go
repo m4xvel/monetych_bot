@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -11,23 +10,10 @@ import (
 func (h *Handler) handleStartCommand(ctx context.Context, msg *tgbotapi.Message) {
 	chatID := msg.Chat.ID
 
-	err := h.userService.AddUserIfNotExists(ctx, chatID)
-	if err != nil {
-		h.bot.Send(tgbotapi.NewMessage(chatID, "❌ Ошибка добавления в базу данных."))
-		return
-	}
+	// h.setMenu(chatID)
 
-	games, err := h.gameService.ListGames(ctx)
-	if err != nil {
-		h.bot.Send(tgbotapi.NewMessage(chatID, "❌ Не удалось загрузить список игр."))
-		log.Println(err)
-		return
-	}
-
-	if len(games) == 0 {
-		h.bot.Send(tgbotapi.NewMessage(chatID, "😕 Пока нет доступных игр."))
-		return
-	}
+	h.userService.AddUserIfNotExists(ctx, chatID)
+	games, _ := h.gameService.ListGames(ctx)
 
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, g := range games {
@@ -35,7 +21,16 @@ func (h *Handler) handleStartCommand(ctx context.Context, msg *tgbotapi.Message)
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}
 
-	message := tgbotapi.NewMessage(chatID, "Выберите игру 🎮")
+	message := tgbotapi.NewMessage(chatID, h.text.ChooseGame)
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
 	h.bot.Send(message)
+}
+
+func (h *Handler) setMenu(chatID int64) {
+	h.bot.SetChatMenuButton(tgbotapi.SetChatMenuButtonConfig{
+		ChatID: chatID,
+		MenuButton: tgbotapi.MenuButton{
+			Type: "commands",
+		},
+	})
 }

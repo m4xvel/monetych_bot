@@ -46,16 +46,37 @@ func (r *OrderRepo) Accept(
 	return nil
 }
 
-func (r *OrderRepo) GetByUser(ctx context.Context, userID int64) (*domain.Order, error) {
+func (r *OrderRepo) GetByID(ctx context.Context, id int) (*domain.Order, error) {
+	query := `
+	SELECT id, user_id, appraiser_id, status, topic_id, thread_id
+	FROM orders 
+	WHERE id = $1`
+
+	var o domain.Order
+	err := r.pool.QueryRow(ctx, query, id).Scan(
+		&o.ID,
+		&o.UserID,
+		&o.AppraiserID,
+		&o.Status,
+		&o.TopicID,
+		&o.ThreadID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get order status: %w", err)
+	}
+	return &o, nil
+}
+
+func (r *OrderRepo) GetByUser(ctx context.Context, userID int64, status string) (*domain.Order, error) {
 	query := `
 	SELECT id, user_id, appraiser_id, status, topic_id, thread_id
 	FROM orders 
 	WHERE user_id = $1
-	AND status = 'active'
+	AND status = $2
 	LIMIT 1`
 
 	var o domain.Order
-	err := r.pool.QueryRow(ctx, query, userID).Scan(
+	err := r.pool.QueryRow(ctx, query, userID, status).Scan(
 		&o.ID,
 		&o.UserID,
 		&o.AppraiserID,
