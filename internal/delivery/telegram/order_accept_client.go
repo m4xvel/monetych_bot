@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -39,4 +40,17 @@ func (h *Handler) handleOrderAcceptClient(
 		h.text.YouConfirmedPayment,
 	)
 	h.bot.Request(editText)
+
+	msg = tgbotapi.NewMessage(chatID, "Оцените наш сервис от 1 до 5 ⭐")
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⭐ 1", fmt.Sprintf("rate:%d:%d", 1, orderID)),
+			tgbotapi.NewInlineKeyboardButtonData("⭐ 2", fmt.Sprintf("rate:%d:%d", 2, orderID)),
+			tgbotapi.NewInlineKeyboardButtonData("⭐ 3", fmt.Sprintf("rate:%d:%d", 3, orderID)),
+			tgbotapi.NewInlineKeyboardButtonData("⭐ 4", fmt.Sprintf("rate:%d:%d", 4, orderID)),
+			tgbotapi.NewInlineKeyboardButtonData("⭐ 5", fmt.Sprintf("rate:%d:%d", 5, orderID)),
+		),
+	)
+	msg.ReplyMarkup = keyboard
+	h.bot.Send(msg)
 }

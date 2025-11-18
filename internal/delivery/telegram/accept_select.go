@@ -50,7 +50,8 @@ func (h *Handler) handleAcceptSelect(
 		chatID,
 	)
 	topicID := h.assessorService.GetTopicIDByTgID(ctx, chatID)
-	h.orderService.Accept(ctx, chatID, orderID, topicID, threadID)
+	assessor, _ := h.assessorService.GetAssessorByTgID(ctx, chatID)
+	h.orderService.Accept(ctx, assessor.ID, orderID, topicID, threadID)
 	h.sendOrderControlPanel(topicID, threadID, orderID)
 	h.bot.Request(tgbotapi.NewDeleteMessage(userID, messageUserId))
 	h.bot.Send(tgbotapi.NewMessage(

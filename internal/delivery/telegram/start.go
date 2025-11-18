@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -10,27 +9,26 @@ import (
 func (h *Handler) handleStartCommand(ctx context.Context, msg *tgbotapi.Message) {
 	chatID := msg.Chat.ID
 
-	// h.setMenu(chatID)
-
-	h.userService.AddUserIfNotExists(ctx, chatID)
-	games, _ := h.gameService.ListGames(ctx)
-
-	var rows [][]tgbotapi.InlineKeyboardButton
-	for _, g := range games {
-		btn := tgbotapi.NewInlineKeyboardButtonData(g.Name, fmt.Sprintf("game:%d:%s", g.ID, g.Name))
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
+	commands := []tgbotapi.BotCommand{
+		{Command: "start", Description: h.text.StartMenuText},
+		{Command: "catalog", Description: h.text.CatalogMenuText},
+		{Command: "support", Description: h.text.SupportMenuText},
+		{Command: "reviews", Description: h.text.ReviewsMenuText},
 	}
 
-	message := tgbotapi.NewMessage(chatID, h.text.ChooseGame)
-	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
-	h.bot.Send(message)
-}
+	h.bot.Request(tgbotapi.NewSetMyCommands(commands...))
 
-func (h *Handler) setMenu(chatID int64) {
 	h.bot.SetChatMenuButton(tgbotapi.SetChatMenuButtonConfig{
 		ChatID: chatID,
 		MenuButton: tgbotapi.MenuButton{
 			Type: "commands",
 		},
 	})
+
+	h.userService.AddUserIfNotExists(ctx, chatID)
+
+	h.bot.Send(tgbotapi.NewMessage(
+		chatID,
+		h.text.HelloText,
+	))
 }

@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
 type UserRepo struct {
@@ -12,6 +14,34 @@ type UserRepo struct {
 
 func NewUserRepo(pool *pgxpool.Pool) *UserRepo {
 	return &UserRepo{pool: pool}
+}
+
+func (r *UserRepo) GetUserByUserID(ctx context.Context, id int) (*domain.User, error) {
+	query := `
+	SELECT id, tg_id
+	FROM users
+	WHERE id = $1`
+
+	var u domain.User
+	err := r.pool.QueryRow(ctx, query, id).Scan(&u.ID, &u.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+	return &u, nil
+}
+
+func (r *UserRepo) GetUserByUserTgID(ctx context.Context, userID int64) (*domain.User, error) {
+	query := `
+	SELECT id, tg_id
+	FROM users
+	WHERE tg_id = $1`
+
+	var u domain.User
+	err := r.pool.QueryRow(ctx, query, userID).Scan(&u.ID, &u.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+	return &u, nil
 }
 
 func (r *UserRepo) AddUserIfNotExists(ctx context.Context, userID int64) error {

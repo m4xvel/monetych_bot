@@ -17,6 +17,8 @@ type Handler struct {
 	userService     *usecase.UserService
 	orderService    *usecase.OrderService
 	assessorService *usecase.AssessorService
+	stateService    *usecase.StateService
+	reviewService   *usecase.ReviewService
 	router          *Router
 	text            *utils.Messages
 	textDynamic     *utils.Dynamic
@@ -30,26 +32,24 @@ func NewHandler(
 	gs *usecase.GameService,
 	us *usecase.UserService,
 	os *usecase.OrderService,
-	as *usecase.AssessorService) *Handler {
+	as *usecase.AssessorService,
+	ss *usecase.StateService,
+	rs *usecase.ReviewService,
+) *Handler {
 	h := &Handler{
 		bot:                 bot,
 		gameService:         gs,
 		userService:         us,
 		orderService:        os,
 		assessorService:     as,
+		stateService:        ss,
+		reviewService:       rs,
 		text:                utils.NewMessages(),
 		textDynamic:         utils.NewDynamic(),
 		router:              NewRouter(),
 		lastProcessedChatID: make(map[int64]int),
 	}
 
-	// commands := []tgbotapi.BotCommand{
-	// 	{Command: "start", Description: "Запуск бота"},
-	// 	{Command: "help", Description: "Помощь"},
-	// 	{Command: "order", Description: "Создать заказ"},
-	// }
-
-	// bot.Request(tgbotapi.NewSetMyCommands(commands...))
 	h.registerRoutes()
 	return h
 }
@@ -68,6 +68,8 @@ func (h *Handler) shouldProcess(chatID int64, messageID int) bool {
 
 func (h *Handler) registerRoutes() {
 	h.router.RegisterCommand("start", h.handleStartCommand)
+	h.router.RegisterCommand("catalog", h.handleCatalogCommand)
+	h.router.RegisterCommand("support", h.handleSupportCommand)
 
 	h.router.RegisterCallback("game:", h.handleGameSelect)
 	h.router.RegisterCallback("type:", h.handleTypeSelect)
@@ -77,6 +79,7 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("order_accept:", h.handleOrderAcceptAssessor)
 	h.router.RegisterCallback("order_decline:", h.handleOrderDeclineAssessor)
 	h.router.RegisterCallback("order_accept_client:", h.handleOrderAcceptClient)
+	h.router.RegisterCallback("rate:", h.handleRateSelect)
 
 	h.router.RegisterMessageHandler(h.handleMessage)
 }
@@ -96,13 +99,6 @@ func (h *Handler) showInlineKeyboardVerification(chatID int64, text string, isVe
 }
 
 func (h *Handler) contactAnAppraiser(ctx context.Context, chatID int64, nameGame, nameType string) {
-	orderNew, _ := h.orderService.GetActiveByClient(ctx, chatID, "new")
-	orderActive, _ := h.orderService.GetActiveByClient(ctx, chatID, "active")
-	if orderNew != nil || orderActive != nil {
-		h.bot.Send(tgbotapi.NewMessage(chatID, h.text.AlreadyActiveOrder))
-		return
-	}
-
 	msg := tgbotapi.NewMessage(chatID, h.text.ContactAppraiserText)
 	verificationButton := tgbotapi.NewInlineKeyboardButtonData(h.text.ContactText, fmt.Sprintf("order:%s:%s", nameGame, nameType))
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(

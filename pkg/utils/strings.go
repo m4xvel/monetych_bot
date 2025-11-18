@@ -5,6 +5,7 @@ import "fmt"
 type Dynamic struct{}
 
 type Messages struct {
+	HelloText                 string
 	ChooseGame                string
 	ChooseType                string
 	AlreadyActiveOrder        string
@@ -24,10 +25,16 @@ type Messages struct {
 	YouOrderCancelled         string
 	OrderConfirmed            string
 	YouConfirmedPayment       string
+	SupportText               string
+	StartMenuText             string
+	CatalogMenuText           string
+	SupportMenuText           string
+	ReviewsMenuText           string
 }
 
 func NewMessages() *Messages {
 	return &Messages{
+		HelloText:                 "Привет! 👋 Добро пожаловать в наш сервис.\n\nЗдесь ты можешь быстро и безопасно продать игровой аккаунт, предмет, скин или любую ценность из игры.\nМы делаем всё максимально просто: выбираешь игру, проходишь короткие шаги — и наш эксперт поможет со всем дальше.\nЕсли что-то будет непонятно, мы всегда рядом 😊\n\nГотов начать? 🎮✨",
 		ChooseGame:                "Выбери игру 🎮",
 		ChooseType:                "Выбери, что хочешь продать ✨",
 		AlreadyActiveOrder:        "У тебя уже есть активная заявка 🙂",
@@ -47,6 +54,11 @@ func NewMessages() *Messages {
 		YouOrderCancelled:         "Эксперт отменил заявку 😕",
 		OrderConfirmed:            "Клиент подтвердил сделку ✔️",
 		YouConfirmedPayment:       "Ты подтвердил получение выплаты 🎉\nСпасибо, что выбрал наш сервис! 😊",
+		SupportText:               "Служба поддержки: @support",
+		StartMenuText:             "♻ Обновить меню",
+		CatalogMenuText:           "🎮 Открыть каталог",
+		SupportMenuText:           "👨‍💻 Поддержка",
+		ReviewsMenuText:           "⭐️ Отзывы клиентов",
 	}
 }
 

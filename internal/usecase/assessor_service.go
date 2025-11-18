@@ -15,6 +15,10 @@ func NewAssessorService(repo domain.AssessorRepository) *AssessorService {
 	return &AssessorService{repo: repo}
 }
 
+func (s *AssessorService) GetAssessorByTgID(ctx context.Context, tgID int64) (*domain.Assessor, error) {
+	return s.repo.GetAssessorByTgID(ctx, tgID)
+}
+
 func (s *AssessorService) GetAllAssessorTgIDs(ctx context.Context) ([]int64, error) {
 	allAssessors, err := s.repo.GetAllAssessor(ctx)
 	if err != nil {

@@ -34,5 +34,6 @@ func (h *Handler) handleOrderDeclineAssessor(
 	msgAssessor.MessageThreadID = *order.ThreadID
 	h.bot.Send(msgAssessor)
 	h.bot.Request(tgbotapi.NewDeleteTopicMessage(*order.TopicID, messageID, *order.ThreadID))
-	h.bot.Send(tgbotapi.NewMessage(order.UserID, h.text.YouOrderCancelled))
+	user, _ := h.userService.GetUserByUserID(ctx, order.UserID)
+	h.bot.Send(tgbotapi.NewMessage(user.UserID, h.text.YouOrderCancelled))
 }

@@ -16,12 +16,12 @@ func NewOrderRepo(pool *pgxpool.Pool) *OrderRepo {
 	return &OrderRepo{pool: pool}
 }
 
-func (r *OrderRepo) Create(ctx context.Context, order domain.Order) (int, error) {
+func (r *OrderRepo) Create(ctx context.Context, user domain.User, order domain.Order) (int, error) {
 	query := `
 	INSERT INTO orders (user_id, status) 
 	VALUES ($1, $2) RETURNING id` //RETURNING возвращает ID
 	var id int
-	if err := r.pool.QueryRow(ctx, query, order.UserID, order.Status).Scan(&id); err != nil {
+	if err := r.pool.QueryRow(ctx, query, user.ID, order.Status).Scan(&id); err != nil {
 		return 0, fmt.Errorf("insert order: %w", err)
 	}
 	return id, nil
@@ -29,7 +29,7 @@ func (r *OrderRepo) Create(ctx context.Context, order domain.Order) (int, error)
 
 func (r *OrderRepo) Accept(
 	ctx context.Context,
-	appraiserID int64,
+	assessor domain.Assessor,
 	orderID int,
 	status string,
 	topicID, threadID int64,
@@ -39,7 +39,7 @@ func (r *OrderRepo) Accept(
 	SET appraiser_id = $1, status = $2, updated_at = now(), topic_id = $3, thread_id = $4
 	WHERE id = $5`
 
-	_, err := r.pool.Exec(ctx, query, appraiserID, status, topicID, threadID, orderID)
+	_, err := r.pool.Exec(ctx, query, assessor.ID, status, topicID, threadID, orderID)
 	if err != nil {
 		return fmt.Errorf("Accept order: %w", err)
 	}
@@ -67,7 +67,7 @@ func (r *OrderRepo) GetByID(ctx context.Context, id int) (*domain.Order, error) 
 	return &o, nil
 }
 
-func (r *OrderRepo) GetByUser(ctx context.Context, userID int64, status string) (*domain.Order, error) {
+func (r *OrderRepo) GetByUser(ctx context.Context, user domain.User, status string) (*domain.Order, error) {
 	query := `
 	SELECT id, user_id, appraiser_id, status, topic_id, thread_id
 	FROM orders 
@@ -76,7 +76,7 @@ func (r *OrderRepo) GetByUser(ctx context.Context, userID int64, status string) 
 	LIMIT 1`
 
 	var o domain.Order
-	err := r.pool.QueryRow(ctx, query, userID, status).Scan(
+	err := r.pool.QueryRow(ctx, query, user.ID, status).Scan(
 		&o.ID,
 		&o.UserID,
 		&o.AppraiserID,

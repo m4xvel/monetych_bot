@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/domain"
@@ -23,24 +22,32 @@ func (h *Handler) handleMessage(
 
 func (h *Handler) handleAssessorMessage(ctx context.Context, msg *tgbotapi.Message) {
 	threadID := msg.MessageThreadID
-	order, err := h.orderService.GetActiveByThread(ctx, msg.Chat.ID, threadID)
-	if err != nil {
-		log.Println("failed to get order by thread:", err)
+	order, _ := h.orderService.GetActiveByThread(ctx, msg.Chat.ID, threadID)
+	if order == nil {
 		return
 	}
-	if order != nil && order.Status == "active" {
-		h.forwardToUser(order, msg)
+	user, _ := h.userService.GetUserByUserID(ctx, order.UserID)
+	if order.Status == "active" {
+		h.forwardToUser(user, msg)
 	}
 }
 
 func (h *Handler) handleUserMessage(ctx context.Context, msg *tgbotapi.Message) {
-	order, err := h.orderService.GetActiveByClient(ctx, msg.From.ID, "active")
-	if err != nil {
-		log.Println("failed to get order by client:", err)
-		return
-	}
+	user, _ := h.userService.GetUserByUserTgID(ctx, msg.From.ID)
+	order, _ := h.orderService.GetActiveByClient(ctx, user.ID, "active")
+
 	if order != nil && order.Status == "active" {
 		h.forwardToAssessor(order, msg)
+	}
+
+	state, _ := h.stateService.GetState(ctx, user.ID)
+	if state == nil {
+		return
+	}
+	if state.State == domain.StateWritingReview {
+		h.reviewService.UpdateText(ctx, msg.Text, *state.ReviewID)
+		h.bot.Send(tgbotapi.NewMessage(user.UserID, "Спасибо за отзыв!"))
+		h.stateService.SetState(ctx, user.ID, domain.StateIdle, *state.ReviewID)
 	}
 }
 
@@ -54,9 +61,9 @@ func (h *Handler) forwardToAssessor(order *domain.Order, msg *tgbotapi.Message) 
 	h.bot.MakeRequest("copyMessage", params)
 }
 
-func (h *Handler) forwardToUser(order *domain.Order, msg *tgbotapi.Message) {
+func (h *Handler) forwardToUser(user *domain.User, msg *tgbotapi.Message) {
 	params := tgbotapi.Params{
-		"chat_id":      fmt.Sprint(order.UserID),
+		"chat_id":      fmt.Sprint(user.UserID),
 		"from_chat_id": fmt.Sprint(msg.Chat.ID),
 		"message_id":   fmt.Sprint(msg.MessageID),
 	}

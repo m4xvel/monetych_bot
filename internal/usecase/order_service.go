@@ -15,23 +15,21 @@ func NewOrderService(repo domain.OrderRepository) *OrderService {
 	return &OrderService{repo: repo}
 }
 
-func (s *OrderService) CreateOrder(ctx context.Context, userID int64) (int, error) {
-	order := domain.Order{
-		UserID: userID,
-		Status: "new",
-	}
-	return s.repo.Create(ctx, order)
+func (s *OrderService) CreateOrder(ctx context.Context, userID int) (int, error) {
+	return s.repo.Create(ctx, domain.User{ID: userID}, domain.Order{Status: "new"})
 }
 
 func (s *OrderService) Accept(
 	ctx context.Context,
-	appraiserID int64,
+	assessorID int,
 	orderID int,
 	topicID, threadID int64,
 ) error {
 	if err := s.repo.Accept(
 		ctx,
-		appraiserID,
+		domain.Assessor{
+			ID: assessorID,
+		},
 		orderID,
 		"active",
 		topicID,
@@ -42,8 +40,8 @@ func (s *OrderService) Accept(
 	return nil
 }
 
-func (s *OrderService) GetActiveByClient(ctx context.Context, userID int64, status string) (*domain.Order, error) {
-	order, err := s.repo.GetByUser(ctx, userID, status)
+func (s *OrderService) GetActiveByClient(ctx context.Context, userID int, status string) (*domain.Order, error) {
+	order, err := s.repo.GetByUser(ctx, domain.User{ID: userID}, status)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order: %w", err)
 	}

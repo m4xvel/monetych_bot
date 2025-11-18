@@ -14,6 +14,14 @@ func NewUserService(repo domain.UserRepository) *UserService {
 	return &UserService{repo: repo}
 }
 
+func (s *UserService) GetUserByUserID(ctx context.Context, id int) (*domain.User, error) {
+	return s.repo.GetUserByUserID(ctx, id)
+}
+
+func (s *UserService) GetUserByUserTgID(ctx context.Context, userID int64) (*domain.User, error) {
+	return s.repo.GetUserByUserTgID(ctx, userID)
+}
+
 func (s *UserService) VerifyUser(
 	ctx context.Context, userID int64) {
 	s.repo.VerifyUser(ctx, userID)

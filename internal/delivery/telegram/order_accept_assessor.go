@@ -26,7 +26,8 @@ func (h *Handler) handleOrderAcceptAssessor(
 	}
 	orderID, _ := strconv.Atoi(parts[1])
 	order := *h.orderService.GetOrderByID(ctx, orderID)
-	msg := tgbotapi.NewMessage(order.UserID, h.text.ConfirmYourOrder)
+	user, _ := h.userService.GetUserByUserID(ctx, order.UserID)
+	msg := tgbotapi.NewMessage(user.UserID, h.text.ConfirmYourOrder)
 	verificationButton := tgbotapi.NewInlineKeyboardButtonData(h.text.AcceptText, fmt.Sprintf("order_accept_client:%d", orderID))
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(verificationButton),

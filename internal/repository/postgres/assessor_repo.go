@@ -16,6 +16,20 @@ func NewAssessorRepo(pool *pgxpool.Pool) *AssessorRepo {
 	return &AssessorRepo{pool: pool}
 }
 
+func (r *AssessorRepo) GetAssessorByTgID(ctx context.Context, tgID int64) (*domain.Assessor, error) {
+	query := `
+	SELECT id, tg_id
+	FROM assessors
+	WHERE tg_id = $1`
+
+	var a domain.Assessor
+	err := r.pool.QueryRow(ctx, query, tgID).Scan(&a.ID, &a.TgID)
+	if err != nil {
+		return nil, fmt.Errorf("get assessor: %w", err)
+	}
+	return &a, nil
+}
+
 func (r *AssessorRepo) GetAllAssessor(ctx context.Context) ([]domain.Assessor, error) {
 	rows, err := r.pool.Query(ctx, `
 	SELECT id, tg_id, orders_done, topic_id 

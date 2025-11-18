@@ -12,6 +12,7 @@ type Assessor struct {
 }
 
 type AssessorRepository interface {
+	GetAssessorByTgID(ctx context.Context, tgID int64) (*Assessor, error)
 	GetAllAssessor(ctx context.Context) ([]Assessor, error)
 	GetTopicIDByTgID(ctx context.Context, tgID int64) (int64, error)
 }
