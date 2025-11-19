@@ -9,6 +9,6 @@ type Review struct {
 }
 
 type ReviewRepository interface {
-	SetRate(ctx context.Context, order Order, user User, rate int) (int, error)
-	UpdateText(ctx context.Context, text string, id int) error
+	Create(ctx context.Context, orderID, userID, rate int) (int, error)
+	UpdateText(ctx context.Context, id int, text string) error
 }

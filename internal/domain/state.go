@@ -1,22 +1,26 @@
 package domain
 
-import "context"
-
-type UserState string
-
-const (
-	StateIdle          UserState = "idle"
-	StateActiveOrder   UserState = "active_order"
-	StateWritingReview UserState = "writing_review"
+import (
+	"context"
+	"time"
 )
 
-type State struct {
-	UserID   int64
-	State    UserState
-	ReviewID *int
+type StateName string
+
+const (
+	StateIdle          StateName = "idle"
+	StateStart         StateName = "start"
+	StateWritingReview StateName = "writing_review"
+)
+
+type UserState struct {
+	UserID    int
+	State     StateName
+	ReviewID  *int
+	UpdatedAt time.Time
 }
 
 type UserStateRepo interface {
-	Get(ctx context.Context, user User) (*State, error)
-	Set(ctx context.Context, user User, state UserState, review Review) error
+	Get(ctx context.Context, userID int) (*UserState, error)
+	Set(ctx context.Context, state UserState) error
 }

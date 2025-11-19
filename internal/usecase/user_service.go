@@ -2,37 +2,43 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
 type UserService struct {
-	repo domain.UserRepository
+	users domain.UserRepository
 }
 
-func NewUserService(repo domain.UserRepository) *UserService {
-	return &UserService{repo: repo}
+func NewUserService(ur domain.UserRepository) *UserService {
+	return &UserService{users: ur}
 }
 
-func (s *UserService) GetUserByUserID(ctx context.Context, id int) (*domain.User, error) {
-	return s.repo.GetUserByUserID(ctx, id)
+func (s *UserService) GetByID(ctx context.Context, id int) (*domain.User, error) {
+	u, err := s.users.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get user by id: %w", err)
+	}
+	return u, nil
 }
 
-func (s *UserService) GetUserByUserTgID(ctx context.Context, userID int64) (*domain.User, error) {
-	return s.repo.GetUserByUserTgID(ctx, userID)
+func (s *UserService) GetByTgID(ctx context.Context, tgID int64) (*domain.User, error) {
+	u, err := s.users.GetByTgID(ctx, tgID)
+	if err != nil {
+		return nil, fmt.Errorf("get user by tg id: %w", err)
+	}
+	return u, nil
 }
 
-func (s *UserService) VerifyUser(
-	ctx context.Context, userID int64) {
-	s.repo.VerifyUser(ctx, userID)
+func (s *UserService) AddIfNotExists(ctx context.Context, tgID int64) error {
+	return s.users.AddIfNotExists(ctx, tgID)
 }
 
-func (s *UserService) CheckStatusVerified(
-	ctx context.Context, userID int64) bool {
-	return s.repo.Is_verified(ctx, userID)
+func (s *UserService) Verify(ctx context.Context, tgID int64) error {
+	return s.users.Verify(ctx, tgID)
 }
 
-func (s *UserService) AddUserIfNotExists(
-	ctx context.Context, userID int64) error {
-	return s.repo.AddUserIfNotExists(ctx, userID)
+func (s *UserService) IsVerified(ctx context.Context, tgID int64) (bool, error) {
+	return s.users.IsVerified(ctx, tgID)
 }

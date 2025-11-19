@@ -9,28 +9,9 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type SentOrder struct {
-	ChatID    int64
-	MessageID int
-}
-
-var orderMessages = map[int][]SentOrder{}
-
 func (h *Handler) handleOrderSelect(ctx context.Context, cb *tgbotapi.CallbackQuery) {
 	chatID := cb.Message.Chat.ID
 	messageID := cb.Message.MessageID
-
-	user, _ := h.userService.GetUserByUserTgID(ctx, chatID)
-	orderNew, _ := h.orderService.GetActiveByClient(ctx, user.ID, "new")
-	orderActive, _ := h.orderService.GetActiveByClient(ctx, user.ID, "active")
-	if orderNew != nil || orderActive != nil {
-		h.bot.Send(tgbotapi.NewEditMessageText(
-			chatID,
-			messageID,
-			h.text.AlreadyActiveOrder,
-		))
-		return
-	}
 
 	if !h.shouldProcess(chatID, messageID) {
 		return
@@ -46,8 +27,20 @@ func (h *Handler) handleOrderSelect(ctx context.Context, cb *tgbotapi.CallbackQu
 
 	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
 
-	userID, _ := h.userService.GetUserByUserTgID(ctx, chatID)
-	id, _ := h.orderService.CreateOrder(ctx, userID.ID)
+	userID, _ := h.userService.GetByTgID(ctx, chatID)
+	id, err := h.orderService.CreateOrder(ctx, userID.ID)
+	if id == 0 {
+		h.bot.Send(tgbotapi.NewEditMessageText(
+			chatID,
+			messageID,
+			h.text.AlreadyActiveOrder,
+		))
+		return
+	}
+	if err != nil {
+		log.Printf("failed to create order: %v", err)
+		return
+	}
 
 	h.notifyAssessorsAboutOrder(ctx, id, itemGame, itemType, chatID, messageID)
 
@@ -62,7 +55,7 @@ func (h *Handler) handleOrderSelect(ctx context.Context, cb *tgbotapi.CallbackQu
 
 func (h *Handler) notifyAssessorsAboutOrder(
 	ctx context.Context, orderID int, nameGame, nameType string, userID int64, messageUserId int) {
-	tgIDs, err := h.assessorService.GetAllAssessorTgIDs(ctx)
+	tgIDs, err := h.assessorService.GetAllTgIDs(ctx)
 	if err != nil {
 		log.Printf("failed to get assessors: %v", err)
 		return
@@ -76,8 +69,14 @@ func (h *Handler) notifyAssessorsAboutOrder(
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(button),
 		)
-		sentMsg, _ := h.bot.Send(msg)
-		orderMessages[orderID] = append(orderMessages[orderID], SentOrder{
+
+		sentMsg, err := h.bot.Send(msg)
+		if err != nil {
+			log.Printf("failed to send order to assessor %d: %v", tgID, err)
+			continue
+		}
+
+		h.addSentOrder(orderID, SentOrder{
 			ChatID:    sentMsg.Chat.ID,
 			MessageID: sentMsg.MessageID,
 		})

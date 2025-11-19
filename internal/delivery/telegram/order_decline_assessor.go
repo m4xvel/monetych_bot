@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
 func (h *Handler) handleOrderDeclineAssessor(
@@ -24,8 +25,8 @@ func (h *Handler) handleOrderDeclineAssessor(
 		return
 	}
 	orderID, _ := strconv.Atoi(parts[1])
-	order := *h.orderService.GetOrderByID(ctx, orderID)
-	h.orderService.UpdateStatus(ctx, orderID, "canceled")
+	order, _ := h.orderService.GetOrderByID(ctx, orderID)
+	h.orderService.UpdateStatus(ctx, orderID, domain.OrderClosed)
 
 	msgAssessor := tgbotapi.NewMessage(
 		*order.TopicID,
@@ -34,6 +35,6 @@ func (h *Handler) handleOrderDeclineAssessor(
 	msgAssessor.MessageThreadID = *order.ThreadID
 	h.bot.Send(msgAssessor)
 	h.bot.Request(tgbotapi.NewDeleteTopicMessage(*order.TopicID, messageID, *order.ThreadID))
-	user, _ := h.userService.GetUserByUserID(ctx, order.UserID)
+	user, _ := h.userService.GetByID(ctx, order.UserID)
 	h.bot.Send(tgbotapi.NewMessage(user.UserID, h.text.YouOrderCancelled))
 }

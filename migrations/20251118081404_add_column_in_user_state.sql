@@ -1,5 +1,4 @@
 -- +goose Up
-ALTER TABLE user_state
-ADD review_id INTEGER;
+ALTER TABLE user_state DROP COLUMN review_id;
 
 -- +goose Down

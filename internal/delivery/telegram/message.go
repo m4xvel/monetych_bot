@@ -16,7 +16,6 @@ func (h *Handler) handleMessage(
 		h.handleAssessorMessage(ctx, msg)
 		return
 	}
-
 	h.handleUserMessage(ctx, msg)
 }
 
@@ -26,28 +25,40 @@ func (h *Handler) handleAssessorMessage(ctx context.Context, msg *tgbotapi.Messa
 	if order == nil {
 		return
 	}
-	user, _ := h.userService.GetUserByUserID(ctx, order.UserID)
-	if order.Status == "active" {
+	user, _ := h.userService.GetByID(ctx, order.UserID)
+	if order.Status == domain.OrderActive {
 		h.forwardToUser(user, msg)
 	}
 }
 
 func (h *Handler) handleUserMessage(ctx context.Context, msg *tgbotapi.Message) {
-	user, _ := h.userService.GetUserByUserTgID(ctx, msg.From.ID)
-	order, _ := h.orderService.GetActiveByClient(ctx, user.ID, "active")
+	user, _ := h.userService.GetByTgID(ctx, msg.From.ID)
+	order, _ := h.orderService.GetActiveByClient(ctx, user.ID)
 
-	if order != nil && order.Status == "active" {
+	if order != nil && order.Status == domain.OrderActive {
 		h.forwardToAssessor(order, msg)
+		return
 	}
 
 	state, _ := h.stateService.GetState(ctx, user.ID)
+	fmt.Println(state)
 	if state == nil {
 		return
 	}
+
+	if state.State == domain.StateStart {
+		h.handleCatalogCommand(ctx, msg)
+		return
+	}
+
 	if state.State == domain.StateWritingReview {
-		h.reviewService.UpdateText(ctx, msg.Text, *state.ReviewID)
+		h.reviewService.UpdateText(ctx, *state.ReviewID, msg.Text)
 		h.bot.Send(tgbotapi.NewMessage(user.UserID, "Спасибо за отзыв!"))
-		h.stateService.SetState(ctx, user.ID, domain.StateIdle, *state.ReviewID)
+		h.stateService.SetState(ctx, domain.UserState{
+			UserID: user.ID,
+			State:  domain.StateIdle,
+		})
+		return
 	}
 }
 

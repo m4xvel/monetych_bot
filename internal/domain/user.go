@@ -3,15 +3,19 @@ package domain
 import "context"
 
 type User struct {
-	ID     int
-	UserID int64
+	ID          int
+	UserID      int64
+	IsVerified  bool
+	TotalOrders int
 }
 
 type UserRepository interface {
-	GetUserByUserID(ctx context.Context, id int) (*User, error)
-	GetUserByUserTgID(ctx context.Context, userID int64) (*User, error)
-	AddUserIfNotExists(ctx context.Context, userID int64) error
-	VerifyUser(ctx context.Context, userID int64) error
-	Is_verified(ctx context.Context, userID int64) bool
-	ChangeTotalOrders(ctx context.Context, userID int64)
+	GetByID(ctx context.Context, id int) (*User, error)
+	GetByTgID(ctx context.Context, tgID int64) (*User, error)
+
+	AddIfNotExists(ctx context.Context, tgID int64) error
+	Verify(ctx context.Context, tgID int64) error
+	IsVerified(ctx context.Context, tgID int64) (bool, error)
+
+	IncrementOrders(ctx context.Context, userID int) error
 }

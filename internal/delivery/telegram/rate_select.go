@@ -28,14 +28,18 @@ func (h *Handler) handleRateSelect(
 	rate, _ := strconv.Atoi(parts[1])
 	orderID, _ := strconv.Atoi(parts[2])
 
-	user, _ := h.userService.GetUserByUserTgID(ctx, chatID)
+	user, _ := h.userService.GetByTgID(ctx, chatID)
 
-	reviewID, err := h.reviewService.SetRate(ctx, orderID, user.ID, rate)
+	reviewID, err := h.reviewService.AddReview(ctx, orderID, user.ID, rate, "")
 	if err != nil {
 		fmt.Printf("insert review: %s", err)
 	}
 
-	h.stateService.SetState(ctx, user.ID, domain.StateWritingReview, reviewID)
+	h.stateService.SetState(ctx, domain.UserState{
+		UserID:   user.ID,
+		State:    domain.StateWritingReview,
+		ReviewID: &reviewID,
+	})
 
 	h.bot.Send(tgbotapi.NewEditMessageText(
 		chatID,

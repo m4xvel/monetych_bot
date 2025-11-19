@@ -11,6 +11,11 @@ import (
 	"github.com/m4xvel/monetych_bot/pkg/utils"
 )
 
+type SentOrder struct {
+	ChatID    int64
+	MessageID int
+}
+
 type Handler struct {
 	bot             *tgbotapi.BotAPI
 	gameService     *usecase.GameService
@@ -25,6 +30,7 @@ type Handler struct {
 
 	mu                  sync.Mutex
 	lastProcessedChatID map[int64]int
+	orderMessages       map[int][]SentOrder
 }
 
 func NewHandler(
@@ -48,6 +54,7 @@ func NewHandler(
 		textDynamic:         utils.NewDynamic(),
 		router:              NewRouter(),
 		lastProcessedChatID: make(map[int64]int),
+		orderMessages:       make(map[int][]SentOrder),
 	}
 
 	h.registerRoutes()
@@ -64,6 +71,26 @@ func (h *Handler) shouldProcess(chatID int64, messageID int) bool {
 
 	h.lastProcessedChatID[chatID] = messageID
 	return true
+}
+
+func (h *Handler) addSentOrder(orderID int, sent SentOrder) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.orderMessages[orderID] = append(h.orderMessages[orderID], sent)
+}
+
+func (h *Handler) deleteSentOrders(orderID int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	sentOrders, ok := h.orderMessages[orderID]
+	if !ok {
+		return
+	}
+	for _, sent := range sentOrders {
+		h.bot.Request(tgbotapi.NewDeleteMessage(sent.ChatID, sent.MessageID))
+	}
+	delete(h.orderMessages, orderID)
 }
 
 func (h *Handler) registerRoutes() {
@@ -98,7 +125,7 @@ func (h *Handler) showInlineKeyboardVerification(chatID int64, text string, isVe
 	h.bot.Send(msg)
 }
 
-func (h *Handler) contactAnAppraiser(ctx context.Context, chatID int64, nameGame, nameType string) {
+func (h *Handler) contactAnAppraiser(chatID int64, nameGame, nameType string) {
 	msg := tgbotapi.NewMessage(chatID, h.text.ContactAppraiserText)
 	verificationButton := tgbotapi.NewInlineKeyboardButtonData(h.text.ContactText, fmt.Sprintf("order:%s:%s", nameGame, nameType))
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
@@ -113,9 +140,12 @@ func (h *Handler) createForumTopic(
 	topicName string,
 	assessorID int64,
 ) (int64, error) {
-	chatID := h.assessorService.GetTopicIDByTgID(ctx, assessorID)
+	assessor, err := h.assessorService.GetByTgID(ctx, assessorID)
+	if err != nil {
+		return 0, fmt.Errorf("get assessor by tg id: %w", err)
+	}
 	params := tgbotapi.Params{
-		"chat_id": fmt.Sprint(chatID),
+		"chat_id": fmt.Sprint(assessor.TopicID),
 		"name":    topicName,
 	}
 

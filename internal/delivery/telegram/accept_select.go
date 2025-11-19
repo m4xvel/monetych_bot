@@ -3,14 +3,14 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func (h *Handler) handleAcceptSelect(
-	ctx context.Context, cb *tgbotapi.CallbackQuery) {
+func (h *Handler) handleAcceptSelect(ctx context.Context, cb *tgbotapi.CallbackQuery) {
 	chatID := cb.Message.Chat.ID
 	messageID := cb.Message.MessageID
 
@@ -26,38 +26,34 @@ func (h *Handler) handleAcceptSelect(
 	itemGame := parts[2]
 	itemType := parts[3]
 	userID, _ := strconv.ParseInt(parts[4], 10, 64)
-	messageUserId, _ := strconv.Atoi(parts[5])
+	messageUserID, _ := strconv.Atoi(parts[5])
 
 	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
 
-	sentOrders := orderMessages[orderID]
-	for _, sent := range sentOrders {
-		deleteMsg := tgbotapi.NewDeleteMessage(sent.ChatID, sent.MessageID)
-		h.bot.Request(deleteMsg)
-	}
+	h.deleteSentOrders(orderID)
 
-	delete(orderMessages, orderID)
-
-	msg := tgbotapi.NewMessage(
+	h.bot.Send(tgbotapi.NewMessage(
 		chatID,
 		h.textDynamic.AssessorAcceptedOrder(orderID, itemGame, itemType),
-	)
-	h.bot.Send(msg)
-
-	threadID, _ := h.createForumTopic(
-		ctx,
-		h.textDynamic.TitleOrderTopic(orderID, itemGame, itemType),
-		chatID,
-	)
-	topicID := h.assessorService.GetTopicIDByTgID(ctx, chatID)
-	assessor, _ := h.assessorService.GetAssessorByTgID(ctx, chatID)
-	h.orderService.Accept(ctx, assessor.ID, orderID, topicID, threadID)
-	h.sendOrderControlPanel(topicID, threadID, orderID)
-	h.bot.Request(tgbotapi.NewDeleteMessage(userID, messageUserId))
-	h.bot.Send(tgbotapi.NewMessage(
-		userID,
-		h.text.AssessorAcceptedYourOrder,
 	))
+
+	assessor, err := h.assessorService.GetByTgID(ctx, chatID)
+	if err != nil {
+		log.Printf("failed to get assessor: %v", err)
+		return
+	}
+
+	threadID, err := h.createForumTopic(ctx, h.textDynamic.TitleOrderTopic(orderID, itemGame, itemType), chatID)
+	if err != nil {
+		log.Printf("failed to create forum topic: %v", err)
+		return
+	}
+
+	h.orderService.AcceptOrder(ctx, assessor.ID, orderID, assessor.TopicID, threadID)
+	h.sendOrderControlPanel(assessor.TopicID, threadID, orderID)
+
+	h.bot.Request(tgbotapi.NewDeleteMessage(userID, messageUserID))
+	h.bot.Send(tgbotapi.NewMessage(userID, h.text.AssessorAcceptedYourOrder))
 }
 
 func (h *Handler) sendOrderControlPanel(topicID int64, threadID int64, orderID int) {

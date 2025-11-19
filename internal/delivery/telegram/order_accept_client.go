@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
 func (h *Handler) handleOrderAcceptClient(
@@ -25,8 +26,8 @@ func (h *Handler) handleOrderAcceptClient(
 		return
 	}
 	orderID, _ := strconv.Atoi(parts[1])
-	h.orderService.UpdateStatus(ctx, orderID, "completed")
-	order := h.orderService.GetOrderByID(ctx, orderID)
+	h.orderService.UpdateStatus(ctx, orderID, domain.OrderCompleted)
+	order, _ := h.orderService.GetOrderByID(ctx, orderID)
 
 	msg := tgbotapi.NewMessage(
 		*order.TopicID,
@@ -41,7 +42,7 @@ func (h *Handler) handleOrderAcceptClient(
 	)
 	h.bot.Request(editText)
 
-	msg = tgbotapi.NewMessage(chatID, "Оцените наш сервис от 1 до 5 ⭐")
+	msg = tgbotapi.NewMessage(chatID, "Чат закрыт! Оцените наш сервис от 1 до 5 ⭐")
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⭐ 1", fmt.Sprintf("rate:%d:%d", 1, orderID)),

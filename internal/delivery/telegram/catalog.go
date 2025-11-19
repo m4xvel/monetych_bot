@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
 func (h *Handler) handleCatalogCommand(ctx context.Context, msg *tgbotapi.Message) {
@@ -19,4 +20,10 @@ func (h *Handler) handleCatalogCommand(ctx context.Context, msg *tgbotapi.Messag
 	message := tgbotapi.NewMessage(chatID, h.text.ChooseGame)
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
 	h.bot.Send(message)
+
+	user, _ := h.userService.GetByTgID(ctx, chatID)
+	h.stateService.SetState(ctx, domain.UserState{
+		UserID: user.ID,
+		State:  domain.StateIdle,
+	})
 }

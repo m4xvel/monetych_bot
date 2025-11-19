@@ -11,35 +11,26 @@ type AssessorService struct {
 	repo domain.AssessorRepository
 }
 
-func NewAssessorService(repo domain.AssessorRepository) *AssessorService {
-	return &AssessorService{repo: repo}
+func NewAssessorService(r domain.AssessorRepository) *AssessorService {
+	return &AssessorService{repo: r}
 }
 
-func (s *AssessorService) GetAssessorByTgID(ctx context.Context, tgID int64) (*domain.Assessor, error) {
-	return s.repo.GetAssessorByTgID(ctx, tgID)
-}
-
-func (s *AssessorService) GetAllAssessorTgIDs(ctx context.Context) ([]int64, error) {
-	allAssessors, err := s.repo.GetAllAssessor(ctx)
+func (s *AssessorService) GetByTgID(ctx context.Context, tgID int64) (*domain.Assessor, error) {
+	a, err := s.repo.GetByTgID(ctx, tgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list assessors: %w", err)
+		return nil, fmt.Errorf("get assessor by tg id: %w", err)
 	}
-
-	var tgIDs []int64
-	for _, a := range allAssessors {
-		tgIDs = append(tgIDs, a.TgID)
-	}
-
-	return tgIDs, nil
+	return a, nil
 }
 
-func (s *AssessorService) GetTopicIDByTgID(
-	ctx context.Context,
-	assessorID int64,
-) int64 {
-	topicID, err := s.repo.GetTopicIDByTgID(ctx, assessorID)
+func (s *AssessorService) GetAllTgIDs(ctx context.Context) ([]int64, error) {
+	all, err := s.repo.GetAll(ctx)
 	if err != nil {
-		return 0
+		return nil, fmt.Errorf("get all assessors: %w", err)
 	}
-	return topicID
+	out := make([]int64, 0, len(all))
+	for _, a := range all {
+		out = append(out, a.UserID)
+	}
+	return out, nil
 }

@@ -47,10 +47,10 @@ func main() {
 
 	gameService := usecase.NewGameService(gameRepo)
 	userService := usecase.NewUserService(userRepo)
-	orderService := usecase.NewOrderService(orderRepo)
+	orderService := usecase.NewOrderService(orderRepo, userRepo, assessorRepo)
 	assessorService := usecase.NewAssessorService(assessorRepo)
 	stateService := usecase.NewStateService(stateRepo)
-	reviewService := usecase.NewReviewService(reviewRepo)
+	reviewService := usecase.NewReviewService(reviewRepo, orderService)
 
 	handler := telegram.NewHandler(
 		bot,

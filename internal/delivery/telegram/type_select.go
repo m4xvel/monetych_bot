@@ -31,7 +31,7 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 	)
 	h.bot.Request(editText)
 
-	isVerified := h.userService.CheckStatusVerified(ctx, chatID)
+	isVerified, _ := h.userService.IsVerified(ctx, chatID)
 	if !isVerified {
 		h.showInlineKeyboardVerification(
 			chatID,
@@ -43,5 +43,5 @@ func (h *Handler) handleTypeSelect(ctx context.Context, cb *tgbotapi.CallbackQue
 		return
 	}
 
-	h.contactAnAppraiser(ctx, chatID, itemGame, itemType)
+	h.contactAnAppraiser(chatID, itemGame, itemType)
 }

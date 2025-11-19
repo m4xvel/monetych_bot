@@ -28,7 +28,7 @@ func (h *Handler) handleVerifySelect(ctx context.Context, cb *tgbotapi.CallbackQ
 	itemType := parts[3]
 
 	if isVerified {
-		h.userService.VerifyUser(ctx, chatID)
+		h.userService.Verify(ctx, chatID)
 		editText := tgbotapi.NewEditMessageText(
 			chatID,
 			cb.Message.MessageID,
@@ -36,7 +36,7 @@ func (h *Handler) handleVerifySelect(ctx context.Context, cb *tgbotapi.CallbackQ
 		)
 		h.bot.Request(editText)
 
-		h.contactAnAppraiser(ctx, chatID, itemGame, itemType)
+		h.contactAnAppraiser(chatID, itemGame, itemType)
 		return
 	}
 	deleteMsg := tgbotapi.NewDeleteMessage(chatID, messageID)

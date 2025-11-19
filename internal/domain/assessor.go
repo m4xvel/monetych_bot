@@ -5,14 +5,14 @@ import (
 )
 
 type Assessor struct {
-	ID         int
-	TgID       int64
-	OrdersDone int
-	TopicID    int64
+	ID      int
+	UserID  int64
+	TopicID int64
 }
 
 type AssessorRepository interface {
-	GetAssessorByTgID(ctx context.Context, tgID int64) (*Assessor, error)
-	GetAllAssessor(ctx context.Context) ([]Assessor, error)
-	GetTopicIDByTgID(ctx context.Context, tgID int64) (int64, error)
+	GetByID(ctx context.Context, id int) (*Assessor, error)
+	GetByTgID(ctx context.Context, tgID int64) (*Assessor, error)
+	GetAll(ctx context.Context) ([]Assessor, error)
+	GetTopicID(ctx context.Context, tgID int64) (int64, error)
 }
