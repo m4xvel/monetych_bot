@@ -66,7 +66,6 @@ CREATE TABLE users (
 CREATE TABLE assessors (
     id BIGSERIAL PRIMARY KEY,
     tg_id BIGINT UNIQUE NOT NULL,
-    orders_done INT NOT NULL DEFAULT 0,
     topic_id BIGINT UNIQUE
 );
 
@@ -85,17 +84,7 @@ CREATE TABLE orders (
 );
 
 --------------------------------------------------
--- 7. FSM для пользователей
---------------------------------------------------
-CREATE TABLE user_state (
-    user_id BIGINT PRIMARY KEY,
-    state VARCHAR(32) NOT NULL,
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_user_state_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
---------------------------------------------------
--- 9. Отзывы
+-- 8. Отзывы
 --------------------------------------------------
 CREATE TABLE reviews (
     id SERIAL PRIMARY KEY,
@@ -107,6 +96,19 @@ CREATE TABLE reviews (
 
     CONSTRAINT fk_review_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     CONSTRAINT fk_review_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+--------------------------------------------------
+-- 9. FSM для пользователей
+--------------------------------------------------
+CREATE TABLE user_state (
+    user_id BIGINT PRIMARY KEY,
+    state VARCHAR(32) NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    review_id BIGINT,
+    
+    CONSTRAINT fk_user_state_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_state_review FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
 );
 
 -- +goose Down

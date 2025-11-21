@@ -30,6 +30,9 @@ type Messages struct {
 	CatalogMenuText           string
 	SupportMenuText           string
 	ReviewsMenuText           string
+	ThanksForReviewText       string
+	ChatClosedText            string
+	WriteReviewText           string
 }
 
 func NewMessages() *Messages {
@@ -59,6 +62,9 @@ func NewMessages() *Messages {
 		CatalogMenuText:           "🎮 Открыть каталог",
 		SupportMenuText:           "👨‍💻 Поддержка",
 		ReviewsMenuText:           "⭐️ Отзывы клиентов",
+		ThanksForReviewText:       "Спасибо за отзыв!",
+		ChatClosedText:            "Чат закрыт! Оцените наш сервис от 1 до 5 ⭐",
+		WriteReviewText:           "Теперь напишите ваш отзыв ✍️",
 	}
 }
 

@@ -44,6 +44,6 @@ func (h *Handler) handleRateSelect(
 	h.bot.Send(tgbotapi.NewEditMessageText(
 		chatID,
 		messageID,
-		"Теперь напишите ваш отзыв ✍️",
+		h.text.WriteReviewText,
 	))
 }

@@ -53,7 +53,7 @@ func (h *Handler) handleUserMessage(ctx context.Context, msg *tgbotapi.Message) 
 
 	if state.State == domain.StateWritingReview {
 		h.reviewService.UpdateText(ctx, *state.ReviewID, msg.Text)
-		h.bot.Send(tgbotapi.NewMessage(user.UserID, "Спасибо за отзыв!"))
+		h.bot.Send(tgbotapi.NewMessage(user.UserID, h.text.ThanksForReviewText))
 		h.stateService.SetState(ctx, domain.UserState{
 			UserID: user.ID,
 			State:  domain.StateIdle,

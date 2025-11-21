@@ -42,7 +42,7 @@ func (h *Handler) handleOrderAcceptClient(
 	)
 	h.bot.Request(editText)
 
-	msg = tgbotapi.NewMessage(chatID, "Чат закрыт! Оцените наш сервис от 1 до 5 ⭐")
+	msg = tgbotapi.NewMessage(chatID, h.text.ChatClosedText)
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("⭐ 1", fmt.Sprintf("rate:%d:%d", 1, orderID)),
