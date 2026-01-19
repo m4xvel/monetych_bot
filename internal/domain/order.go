@@ -2,35 +2,44 @@ package domain
 
 import (
 	"context"
+	"time"
 )
 
 type OrderStatus string
 
 const (
-	OrderNew       OrderStatus = "new"
-	OrderActive    OrderStatus = "active"
-	OrderCompleted OrderStatus = "completed"
-	OrderClosed    OrderStatus = "closed"
+	OrderNew             OrderStatus = "new"
+	OrderAccepted        OrderStatus = "accepted"
+	OrderExpertConfirmed OrderStatus = "expert_confirmed"
+	OrderCompleted       OrderStatus = "completed"
+	OrderCanceled        OrderStatus = "canceled"
+	OrderDeclined        OrderStatus = "declined"
 )
 
 type Order struct {
-	ID          int
-	UserID      int
-	AppraiserID *int
-	Status      OrderStatus
-	TopicID     *int64
-	ThreadID    *int64
+	ID         int
+	Token      string
+	UserID     int
+	ExpertID   *int
+	ThreadID   *int64
+	Status     OrderStatus
+	GameID     int
+	GameTypeID int
+
+	UserNameAtPurchase     string
+	GameNameAtPurchase     string
+	GameTypeNameAtPurchase string
+
+	createdAt time.Time
+	updatedAt time.Time
+
+	UserChatID int64
+	TopicID    *int64
 }
 
 type OrderRepository interface {
-	Create(ctx context.Context, userID int) (int, error)
-	Get(ctx context.Context, id int) (*Order, error)
-	GetByUser(ctx context.Context, userID int, status OrderStatus) (*Order, error)
-	GetByThread(ctx context.Context, topicID, threadID int64) (*Order, error)
-
-	Accept(ctx context.Context, orderID int, assessorID int, topicID, threadID int64) (*Order, error)
-
-	AssignAssessor(ctx context.Context, orderID, assessorID int) error
-	SetThread(ctx context.Context, orderID int, topicID, threadID int64) error
-	UpdateStatus(ctx context.Context, orderID int, status OrderStatus) error
+	Create(ctx context.Context, order Order) (int, error)
+	UpdateStatus(ctx context.Context, order Order, status OrderStatus) error
+	SetActive(ctx context.Context, order Order, status OrderStatus) error
+	Get(ctx context.Context, orderID int) (*Order, error)
 }

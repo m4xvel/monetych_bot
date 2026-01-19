@@ -4,11 +4,15 @@ import (
 	"context"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
-func (h *Handler) handleStartCommand(ctx context.Context, msg *tgbotapi.Message) {
-	chatID := msg.Chat.ID
+func (h *Handler) handleStartCommand(
+	ctx context.Context,
+	msg *tgbotapi.Message,
+) {
+	chat := msg.Chat
+	chatID := chat.ID
+	name := chat.FirstName
 
 	commands := []tgbotapi.BotCommand{
 		{Command: "start", Description: h.text.StartMenuText},
@@ -26,16 +30,16 @@ func (h *Handler) handleStartCommand(ctx context.Context, msg *tgbotapi.Message)
 		},
 	})
 
-	h.userService.AddIfNotExists(ctx, chatID)
+	h.userService.AddUser(
+		ctx, chatID, name, func() string {
+			return h.feature.GetUserAvatar(h.bot, chatID)
+		},
+	)
 
 	h.bot.Send(tgbotapi.NewMessage(
 		chatID,
 		h.text.HelloText,
 	))
 
-	user, _ := h.userService.GetByTgID(ctx, chatID)
-	h.stateService.SetState(ctx, domain.UserState{
-		UserID: user.ID,
-		State:  domain.StateStart,
-	})
+	h.stateService.SetStateStart(ctx, chatID)
 }

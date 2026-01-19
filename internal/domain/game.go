@@ -12,7 +12,13 @@ type GameType struct {
 	Name string
 }
 
+type GameWithTypeRow struct {
+	GameID   int
+	GameName string
+	TypeID   *int
+	TypeName *string
+}
+
 type GameRepository interface {
-	GetAll(ctx context.Context) ([]Game, error)
-	GetTypes(ctx context.Context, gameID int) ([]string, error)
+	Get(ctx context.Context) ([]GameWithTypeRow, error)
 }

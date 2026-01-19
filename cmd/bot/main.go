@@ -38,28 +38,39 @@ func main() {
 		log.Fatalf("failed to initialize bot: %v", err)
 	}
 
-	gameRepo := postgres.NewGameRepo(pool)
 	userRepo := postgres.NewUserRepo(pool)
-	orderRepo := postgres.NewOrderRepo(pool)
-	assessorRepo := postgres.NewAssessorRepo(pool)
 	stateRepo := postgres.NewUserStateRepo(pool)
+	gameRepo := postgres.NewGameRepo(pool)
+	orderRepo := postgres.NewOrderRepo(pool)
+	expertRepo := postgres.NewExpertRepo(pool)
+	orderMessageRepo := postgres.NewOrderMessageRepo(pool)
 	reviewRepo := postgres.NewReviewRepo(pool)
 
-	gameService := usecase.NewGameService(gameRepo)
 	userService := usecase.NewUserService(userRepo)
-	orderService := usecase.NewOrderService(orderRepo, userRepo, assessorRepo)
-	assessorService := usecase.NewAssessorService(assessorRepo)
 	stateService := usecase.NewStateService(stateRepo)
-	reviewService := usecase.NewReviewService(reviewRepo, orderService)
+	gameService := usecase.NewGameService(gameRepo)
+	orderService := usecase.NewOrderService(orderRepo)
+	expertService := usecase.NewExpertService(expertRepo)
+	orderMessageService := usecase.NewOrderMessageService(orderMessageRepo)
+	reviewService := usecase.NewReviewService(reviewRepo)
+
+	if err := gameService.InitCache(ctx); err != nil {
+		log.Fatalf("failed to init game cache: %v", err)
+	}
+
+	if err := expertService.InitCache(ctx); err != nil {
+		log.Fatalf("failed to init expert cache: %v", err)
+	}
 
 	handler := telegram.NewHandler(
 		bot,
-		gameService,
 		userService,
-		orderService,
-		assessorService,
 		stateService,
+		gameService,
+		orderService,
+		expertService,
 		reviewService,
+		orderMessageService,
 	)
 
 	u := tgbotapi.NewUpdate(0)

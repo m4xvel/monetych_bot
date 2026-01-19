@@ -2,11 +2,12 @@ package telegram
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"sync"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/features"
 	"github.com/m4xvel/monetych_bot/internal/usecase"
 	"github.com/m4xvel/monetych_bot/pkg/utils"
 )
@@ -17,153 +18,223 @@ type SentOrder struct {
 }
 
 type Handler struct {
-	bot             *tgbotapi.BotAPI
-	gameService     *usecase.GameService
-	userService     *usecase.UserService
-	orderService    *usecase.OrderService
-	assessorService *usecase.AssessorService
-	stateService    *usecase.StateService
-	reviewService   *usecase.ReviewService
-	router          *Router
-	text            *utils.Messages
-	textDynamic     *utils.Dynamic
-
-	mu                  sync.Mutex
-	lastProcessedChatID map[int64]int
-	orderMessages       map[int][]SentOrder
+	bot                 *tgbotapi.BotAPI
+	userService         *usecase.UserService
+	stateService        *usecase.StateService
+	gameService         *usecase.GameService
+	orderService        *usecase.OrderService
+	expertService       *usecase.ExpertService
+	orderMessageService *usecase.OrderMessageService
+	reviewService       *usecase.ReviewService
+	router              *Router
+	feature             *features.Features
+	text                *utils.Messages
+	textDynamic         *utils.Dynamic
 }
 
 func NewHandler(
 	bot *tgbotapi.BotAPI,
-	gs *usecase.GameService,
 	us *usecase.UserService,
-	os *usecase.OrderService,
-	as *usecase.AssessorService,
 	ss *usecase.StateService,
+	gs *usecase.GameService,
+	os *usecase.OrderService,
+	es *usecase.ExpertService,
 	rs *usecase.ReviewService,
+	oms *usecase.OrderMessageService,
 ) *Handler {
 	h := &Handler{
 		bot:                 bot,
-		gameService:         gs,
 		userService:         us,
-		orderService:        os,
-		assessorService:     as,
 		stateService:        ss,
+		gameService:         gs,
+		orderService:        os,
+		expertService:       es,
 		reviewService:       rs,
+		orderMessageService: oms,
+		router:              NewRouter(),
+		feature:             features.NewFeatures(),
 		text:                utils.NewMessages(),
 		textDynamic:         utils.NewDynamic(),
-		router:              NewRouter(),
-		lastProcessedChatID: make(map[int64]int),
-		orderMessages:       make(map[int][]SentOrder),
 	}
 
 	h.registerRoutes()
 	return h
 }
 
-func (h *Handler) shouldProcess(chatID int64, messageID int) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if lastID, ok := h.lastProcessedChatID[chatID]; ok && lastID == messageID {
-		return false
-	}
-
-	h.lastProcessedChatID[chatID] = messageID
-	return true
-}
-
-func (h *Handler) addSentOrder(orderID int, sent SentOrder) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.orderMessages[orderID] = append(h.orderMessages[orderID], sent)
-}
-
-func (h *Handler) deleteSentOrders(orderID int) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	sentOrders, ok := h.orderMessages[orderID]
-	if !ok {
-		return
-	}
-	for _, sent := range sentOrders {
-		h.bot.Request(tgbotapi.NewDeleteMessage(sent.ChatID, sent.MessageID))
-	}
-	delete(h.orderMessages, orderID)
-}
-
 func (h *Handler) registerRoutes() {
 	h.router.RegisterCommand("start", h.handleStartCommand)
-	h.router.RegisterCommand("catalog", h.handleCatalogCommand)
-	h.router.RegisterCommand("support", h.handleSupportCommand)
+	h.router.RegisterCommand("catalog", h.handlerCatalogCommand)
 
 	h.router.RegisterCallback("game:", h.handleGameSelect)
 	h.router.RegisterCallback("type:", h.handleTypeSelect)
-	h.router.RegisterCallback("verify:", h.handleVerifySelect)
 	h.router.RegisterCallback("order:", h.handleOrderSelect)
 	h.router.RegisterCallback("accept:", h.handleAcceptSelect)
-	h.router.RegisterCallback("order_accept:", h.handleOrderAcceptAssessor)
-	h.router.RegisterCallback("order_decline:", h.handleOrderDeclineAssessor)
-	h.router.RegisterCallback("order_accept_client:", h.handleOrderAcceptClient)
+	h.router.RegisterCallback("cancel:", h.handlerCancelSelect)
+	h.router.RegisterCallback("declined:", h.handleDeclinedSelect)
+	h.router.RegisterCallback("back:", h.handleBack)
+	h.router.RegisterCallback("declined_reaffirm:",
+		h.handleDeclinedReaffirmSelect,
+	)
+	h.router.RegisterCallback("confirmed:", h.handleConfirmedSelect)
+	h.router.RegisterCallback("confirmed_reaffirm:",
+		h.handleConfirmedReaffirmSelect,
+	)
+	h.router.RegisterCallback("accept_client:", h.handleAcceptClientSelect)
 	h.router.RegisterCallback("rate:", h.handleRateSelect)
 
 	h.router.RegisterMessageHandler(h.handleMessage)
 }
 
 func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
+	if !h.stateGuard(ctx, upd) {
+		return
+	}
 	h.router.Route(ctx, upd)
 }
 
-func (h *Handler) showInlineKeyboardVerification(chatID int64, text string, isVerifyAPI bool, nameGame, nameType string) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	verificationButton := tgbotapi.NewInlineKeyboardButtonData(h.text.VerifyButtonText, fmt.Sprintf("verify:%t:%s:%s", isVerifyAPI, nameGame, nameType)) // Сюда Callback с API
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(verificationButton),
+func (h *Handler) deleteOrderMessage(ctx context.Context, orderID int) {
+
+	sentOrders, err := h.orderMessageService.GetByOrder(ctx, orderID)
+	if err != nil {
+		return
+	}
+	for _, sent := range sentOrders {
+		h.bot.Request(tgbotapi.NewDeleteMessage(
+			sent.ChatID,
+			sent.MessageID,
+		))
+	}
+
+	h.orderMessageService.MarkDeletedByOrder(ctx, orderID)
+}
+
+func (h *Handler) renderControlPanel(
+	topicID, threadID int64,
+	order *domain.Order) {
+
+	btnAccept := tgbotapi.NewInlineKeyboardButtonData(
+		h.text.AcceptText,
+		fmt.Sprintf("confirmed:%d:%d:%d", order.ID, topicID, threadID),
 	)
-	msg.ReplyMarkup = keyboard
+
+	btnDecline := tgbotapi.NewInlineKeyboardButtonData(
+		h.text.DeclineText,
+		fmt.Sprintf("declined:%d:%d:%d", order.ID, topicID, threadID),
+	)
+
+	markup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(btnAccept),
+		tgbotapi.NewInlineKeyboardRow(btnDecline),
+	)
+
+	msg := tgbotapi.NewMessage(
+		topicID,
+		h.textDynamic.ApplicationManagementText(
+			order.GameNameAtPurchase,
+			order.GameTypeNameAtPurchase,
+		),
+	)
+	msg.MessageThreadID = threadID
+	msg.ReplyMarkup = markup
+
 	h.bot.Send(msg)
 }
 
-func (h *Handler) contactAnAppraiser(chatID int64, nameGame, nameType string) {
-	msg := tgbotapi.NewMessage(chatID, h.text.ContactAppraiserText)
-	verificationButton := tgbotapi.NewInlineKeyboardButtonData(h.text.ContactText, fmt.Sprintf("order:%s:%s", nameGame, nameType))
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(verificationButton),
+func (h *Handler) renderEditControlPanel(
+	messageID int,
+	topicID, threadID int64,
+	order *domain.Order) {
+
+	btnAccept := tgbotapi.NewInlineKeyboardButtonData(
+		h.text.AcceptText,
+		fmt.Sprintf("confirmed:%d:%d:%d", order.ID, topicID, threadID),
 	)
-	msg.ReplyMarkup = keyboard
-	h.bot.Send(msg)
+
+	btnDecline := tgbotapi.NewInlineKeyboardButtonData(
+		h.text.DeclineText,
+		fmt.Sprintf("declined:%d:%d:%d", order.ID, topicID, threadID),
+	)
+
+	markup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(btnAccept),
+		tgbotapi.NewInlineKeyboardRow(btnDecline),
+	)
+
+	editMessage := tgbotapi.NewEditMessageText(
+		topicID,
+		messageID,
+		h.textDynamic.ApplicationManagementText(
+			order.GameNameAtPurchase,
+			order.GameTypeNameAtPurchase,
+		),
+	)
+	editMessage.ReplyMarkup = &markup
+
+	h.bot.Send(editMessage)
 }
 
-func (h *Handler) createForumTopic(
+func (h *Handler) stateGuard(
 	ctx context.Context,
-	topicName string,
-	assessorID int64,
-) (int64, error) {
-	assessor, err := h.assessorService.GetByTgID(ctx, assessorID)
+	upd tgbotapi.Update,
+) bool {
+
+	chatID, ok := extractChatID(upd)
+	if !ok {
+		return true
+	}
+
+	state, err := h.stateService.GetStateByChatID(ctx, chatID)
 	if err != nil {
-		return 0, fmt.Errorf("get assessor by tg id: %w", err)
-	}
-	params := tgbotapi.Params{
-		"chat_id": fmt.Sprint(assessor.TopicID),
-		"name":    topicName,
+		return true
 	}
 
-	resp, err := h.bot.MakeRequest("createForumTopic", params)
-	if err != nil {
-		return 0, fmt.Errorf("createForumTopic failed: %w", err)
+	if state.State != domain.StateCommunication {
+		return true
 	}
 
-	if !resp.Ok {
-		return 0, fmt.Errorf("telegram api error: %s", resp.Description)
+	if upd.Message != nil && upd.Message.IsCommand() {
+		h.bot.Send(tgbotapi.NewMessage(
+			chatID,
+			"Вы уже общаетесь с экспертом.\nИспользуйте чат или дождитесь завершения заказа.",
+		))
+		return false
 	}
 
-	var topic struct {
-		MessageThreadID int64 `json:"message_thread_id"`
-	}
-	if err := json.Unmarshal(resp.Result, &topic); err != nil {
-		return 0, fmt.Errorf("failed to unmarshal response: %w", err)
+	if upd.Message != nil {
+		return true
 	}
 
-	return topic.MessageThreadID, nil
+	if upd.CallbackQuery != nil {
+		if strings.HasPrefix(upd.CallbackQuery.Data, "accept_client:") {
+			return true
+		}
+
+		h.answerCallback(
+			upd.CallbackQuery,
+			"Эта кнопка недоступна во время общения с экспертом",
+		)
+		return false
+	}
+
+	return true
+}
+
+func extractChatID(upd tgbotapi.Update) (int64, bool) {
+	if upd.Message != nil {
+		return upd.Message.Chat.ID, true
+	}
+	if upd.CallbackQuery != nil {
+		return upd.CallbackQuery.Message.Chat.ID, true
+	}
+	return 0, false
+}
+
+func (h *Handler) answerCallback(
+	cb *tgbotapi.CallbackQuery,
+	text string,
+) {
+	h.bot.Request(tgbotapi.NewCallback(
+		cb.ID,
+		text,
+	))
 }

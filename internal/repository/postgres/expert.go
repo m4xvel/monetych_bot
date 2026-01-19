@@ -1,0 +1,45 @@
+package postgres
+
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/m4xvel/monetych_bot/internal/domain"
+)
+
+type ExpertRepo struct {
+	pool *pgxpool.Pool
+}
+
+func NewExpertRepo(pool *pgxpool.Pool) *ExpertRepo {
+	return &ExpertRepo{pool: pool}
+}
+
+func (r *ExpertRepo) Get(ctx context.Context) ([]domain.Expert, error) {
+	const q = `SELECT id, chat_id, topic_id FROM experts`
+
+	rows, err := r.pool.Query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []domain.Expert
+
+	for rows.Next() {
+		var e domain.Expert
+		if err := rows.Scan(
+			&e.ID,
+			&e.ChatID,
+			&e.TopicID,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}

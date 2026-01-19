@@ -1,14 +1,25 @@
 package domain
 
-import (
-	"context"
+import "context"
+
+type ReviewStatus string
+
+const (
+	ReviewRated     ReviewStatus = "rated"
+	ReviewWithText  ReviewStatus = "with_text"
+	ReviewPublished ReviewStatus = "published"
+	ReviewRejected  ReviewStatus = "rejected"
 )
 
 type Review struct {
-	ID int
+	ID      int
+	OrderID int
+	Rating  int
+	Text    *string
+	Status  ReviewStatus
 }
 
 type ReviewRepository interface {
-	Create(ctx context.Context, orderID, userID, rate int) (int, error)
-	UpdateText(ctx context.Context, id int, text string) error
+	Create(ctx context.Context, review Review) error
+	Set(ctx context.Context, review Review, status ReviewStatus) error
 }

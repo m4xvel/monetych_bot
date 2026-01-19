@@ -5,8 +5,10 @@ WORKDIR /app
 COPY go.mod go.sum ./
 COPY telegram-bot-api ./telegram-bot-api
 RUN go mod download
+
 COPY . .
 
+RUN mkdir -p /app/avatars && chmod 755 /app/avatars
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o bot ./cmd/bot

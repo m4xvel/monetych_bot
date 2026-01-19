@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"time"
 )
 
 type StateName string
@@ -10,17 +9,25 @@ type StateName string
 const (
 	StateIdle          StateName = "idle"
 	StateStart         StateName = "start"
+	StateCommunication StateName = "communication"
 	StateWritingReview StateName = "writing_review"
 )
 
 type UserState struct {
-	UserID    int
-	State     StateName
-	ReviewID  *int
-	UpdatedAt time.Time
+	State   StateName
+	OrderID *int
+
+	ExpertTopicID *int64
+
+	OrderThreadID *int64
+
+	UserChatID *int64
+
+	ReviewID *int
 }
 
-type UserStateRepo interface {
-	Get(ctx context.Context, userID int) (*UserState, error)
-	Set(ctx context.Context, state UserState) error
+type UserStateRepository interface {
+	Set(ctx context.Context, state UserState, chatID int64) error
+	GetByChatID(ctx context.Context, chatID int64) (*UserState, error)
+	GetByThreadID(ctx context.Context, threadID int64) (*UserState, error)
 }

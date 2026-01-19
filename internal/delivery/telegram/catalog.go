@@ -5,15 +5,20 @@ import (
 	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
-func (h *Handler) handleCatalogCommand(ctx context.Context, msg *tgbotapi.Message) {
+func (h *Handler) handlerCatalogCommand(
+	ctx context.Context,
+	msg *tgbotapi.Message,
+) {
 	chatID := msg.Chat.ID
-	games, _ := h.gameService.ListGames(ctx)
+	games, _ := h.gameService.GetAllGames()
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, g := range games {
-		btn := tgbotapi.NewInlineKeyboardButtonData(g.Name, fmt.Sprintf("game:%d:%s", g.ID, g.Name))
+		btn := tgbotapi.NewInlineKeyboardButtonData(
+			g.Name,
+			fmt.Sprintf("game:%d", g.ID),
+		)
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}
 
@@ -21,9 +26,5 @@ func (h *Handler) handleCatalogCommand(ctx context.Context, msg *tgbotapi.Messag
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
 	h.bot.Send(message)
 
-	user, _ := h.userService.GetByTgID(ctx, chatID)
-	h.stateService.SetState(ctx, domain.UserState{
-		UserID: user.ID,
-		State:  domain.StateIdle,
-	})
+	h.stateService.SetStateIdle(ctx, chatID)
 }
