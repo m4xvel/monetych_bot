@@ -188,6 +188,12 @@ func (h *Handler) stateGuard(
 		return true
 	}
 
+	if state.State == domain.StateWritingReview {
+		if shouldAutoPublishReview(upd) {
+			h.publishPendingReview(ctx, state)
+		}
+	}
+
 	if state.State != domain.StateCommunication {
 		return true
 	}
@@ -219,13 +225,45 @@ func (h *Handler) stateGuard(
 	return true
 }
 
+func shouldAutoPublishReview(upd tgbotapi.Update) bool {
+	if upd.Message != nil {
+
+		if upd.Message.IsCommand() {
+			return true
+		}
+
+		if upd.Message.Text != "" || upd.Message.Caption != "" {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (h *Handler) publishPendingReview(
+	ctx context.Context,
+	state *domain.UserState,
+) {
+	if state.ReviewID == nil {
+		return
+	}
+
+	if err := h.reviewService.Publish(ctx, *state.ReviewID); err != nil {
+		return
+	}
+
+	h.stateService.SetStateIdle(ctx, *state.UserChatID)
+}
+
 func extractChatID(upd tgbotapi.Update) (int64, bool) {
 	if upd.Message != nil {
 		return upd.Message.Chat.ID, true
 	}
+
 	if upd.CallbackQuery != nil {
 		return upd.CallbackQuery.Message.Chat.ID, true
 	}
+
 	return 0, false
 }
 
@@ -233,8 +271,5 @@ func (h *Handler) answerCallback(
 	cb *tgbotapi.CallbackQuery,
 	text string,
 ) {
-	h.bot.Request(tgbotapi.NewCallback(
-		cb.ID,
-		text,
-	))
+	h.bot.Request(tgbotapi.NewCallback(cb.ID, text))
 }

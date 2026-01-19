@@ -64,3 +64,33 @@ func (r *ReviewRepo) Set(
 
 	return nil
 }
+
+func (r *ReviewRepo) Publish(
+	ctx context.Context,
+	reviewID int,
+) error {
+	const q = `
+		UPDATE reviews
+		SET
+			status = $2,
+			published_at = now()
+		WHERE id = $1
+	`
+
+	cmd, err := r.pool.Exec(
+		ctx,
+		q,
+		reviewID,
+		domain.ReviewPublished,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if cmd.RowsAffected() == 0 {
+		return err
+	}
+
+	return nil
+}

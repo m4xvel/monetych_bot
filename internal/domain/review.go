@@ -22,4 +22,5 @@ type Review struct {
 type ReviewRepository interface {
 	Create(ctx context.Context, review Review) error
 	Set(ctx context.Context, review Review, status ReviewStatus) error
+	Publish(ctx context.Context, reviewID int) error
 }

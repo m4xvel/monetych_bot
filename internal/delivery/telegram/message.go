@@ -56,8 +56,9 @@ func (h *Handler) handleUserMessage(
 		}
 
 		h.reviewService.AddText(ctx, *state.ReviewID, text)
-		h.bot.Send(tgbotapi.NewMessage(chatID, h.text.ThanksForReviewText))
+		h.reviewService.Publish(ctx, *state.ReviewID)
 		h.stateService.SetStateIdle(ctx, chatID)
+		h.bot.Send(tgbotapi.NewMessage(chatID, h.text.ThanksForReviewText))
 	}
 }
 

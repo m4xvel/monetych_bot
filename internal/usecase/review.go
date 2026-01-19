@@ -41,3 +41,10 @@ func (r *ReviewService) AddText(
 		domain.ReviewRated,
 	)
 }
+
+func (r *ReviewService) Publish(
+	ctx context.Context,
+	reviewID int,
+) error {
+	return r.repo.Publish(ctx, reviewID)
+}

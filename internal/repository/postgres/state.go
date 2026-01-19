@@ -53,7 +53,8 @@ func (r *UserStateRepo) GetByChatID(
 				us.order_id,
 				e.topic_id,
 				o.thread_id,
-				r.id
+				r.id,
+				u.chat_id
 			FROM users u
 			JOIN user_state us
     		ON us.user_id = u.id
@@ -74,6 +75,7 @@ func (r *UserStateRepo) GetByChatID(
 		&us.ExpertTopicID,
 		&us.OrderThreadID,
 		&us.ReviewID,
+		&us.UserChatID,
 	)
 
 	if err != nil {
