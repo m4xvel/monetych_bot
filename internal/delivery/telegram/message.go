@@ -44,11 +44,18 @@ func (h *Handler) handleUserMessage(
 		h.handlerCatalogCommand(ctx, msg)
 
 	case domain.StateWritingReview:
-		if msg.Text == "" {
+		var text string
+
+		switch {
+		case msg.Text != "":
+			text = msg.Text
+		case msg.Caption != "":
+			text = msg.Caption
+		default:
 			return
 		}
 
-		h.reviewService.AddText(ctx, *state.ReviewID, msg.Text)
+		h.reviewService.AddText(ctx, *state.ReviewID, text)
 		h.bot.Send(tgbotapi.NewMessage(chatID, h.text.ThanksForReviewText))
 		h.stateService.SetStateIdle(ctx, chatID)
 	}
