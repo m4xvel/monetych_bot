@@ -20,6 +20,7 @@ type UserState struct {
 	ExpertTopicID *int64
 
 	OrderThreadID *int64
+	OrderStatus   *OrderStatus
 
 	UserChatID *int64
 

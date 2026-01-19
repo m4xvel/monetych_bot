@@ -83,10 +83,17 @@ func (h *Handler) handleExpertMessage(
 	ctx context.Context,
 	msg *tgbotapi.Message,
 ) {
-	isSystemMessage(msg)
+
+	if isSystemMessage(msg) {
+		return
+	}
 
 	state, err := h.stateService.GetStateByThreadID(ctx, msg.MessageThreadID)
 	if err != nil || state == nil {
+		return
+	}
+
+	if !canExpertWrite(*state.OrderStatus) {
 		return
 	}
 
@@ -115,4 +122,13 @@ func isSystemMessage(msg *tgbotapi.Message) bool {
 		msg.GroupChatCreated ||
 		msg.SuperGroupChatCreated ||
 		msg.ChannelChatCreated
+}
+
+func canExpertWrite(status domain.OrderStatus) bool {
+	switch status {
+	case domain.OrderAccepted, domain.OrderExpertConfirmed:
+		return true
+	default:
+		return false
+	}
 }

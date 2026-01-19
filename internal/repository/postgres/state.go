@@ -92,7 +92,9 @@ func (r *UserStateRepo) GetByThreadID(
 	threadID int64,
 ) (*domain.UserState, error) {
 	const q = `
-			SELECT u.chat_id
+			SELECT 
+				u.chat_id,
+				o.status
 			FROM users u
 			JOIN user_state us
     		ON us.user_id = u.id
@@ -103,7 +105,10 @@ func (r *UserStateRepo) GetByThreadID(
 
 	var us domain.UserState
 
-	err := r.pool.QueryRow(ctx, q, threadID).Scan(&us.UserChatID)
+	err := r.pool.QueryRow(ctx, q, threadID).Scan(
+		&us.UserChatID,
+		&us.OrderStatus,
+	)
 
 	if err != nil {
 		return nil, err
