@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -10,7 +11,6 @@ import (
 )
 
 type HandlerFunc func(ctx context.Context, msg *tgbotapi.Message)
-
 type CallbackHandlerFunc func(ctx context.Context, cb *tgbotapi.CallbackQuery)
 
 type Router struct {
@@ -18,23 +18,22 @@ type Router struct {
 	callbackHandlers map[string]CallbackHandlerFunc
 	messageHandler   HandlerFunc
 
-	mu             sync.Mutex
-	lockedMessages map[int]time.Time
+	mu    sync.Mutex
+	locks map[string]time.Time
 }
 
 func NewRouter() *Router {
 	r := &Router{
 		commandHandlers:  make(map[string]HandlerFunc),
 		callbackHandlers: make(map[string]CallbackHandlerFunc),
-		lockedMessages:   make(map[int]time.Time),
+		locks:            make(map[string]time.Time),
 	}
 
-	go r.cleanupLockedMessages()
-
+	go r.cleanup()
 	return r
 }
 
-const lockTTL = 10 * time.Second
+const lockTTL = 15 * time.Second
 
 func (r *Router) RegisterCommand(cmd string, handler HandlerFunc) {
 	r.commandHandlers[cmd] = handler
@@ -50,14 +49,17 @@ func (r *Router) RegisterMessageHandler(handler HandlerFunc) {
 
 func (r *Router) Route(ctx context.Context, upd tgbotapi.Update) {
 	switch {
+
 	case upd.Message != nil:
 		msg := upd.Message
+
 		if msg.IsCommand() {
 			if handler, ok := r.commandHandlers[msg.Command()]; ok {
 				handler(ctx, msg)
 				return
 			}
 		}
+
 		if r.messageHandler != nil {
 			r.messageHandler(ctx, msg)
 			return
@@ -66,59 +68,58 @@ func (r *Router) Route(ctx context.Context, upd tgbotapi.Update) {
 	case upd.CallbackQuery != nil:
 		cb := upd.CallbackQuery
 
-		msgID := cb.Message.MessageID
+		action := extractPrefix(cb.Data)
+		lockKey := buildLockKey(cb, action)
 
 		r.mu.Lock()
-
-		if t, ok := r.lockedMessages[msgID]; ok {
-			if time.Since(t) < lockTTL {
-				r.mu.Unlock()
-				return
-			}
+		if t, ok := r.locks[lockKey]; ok && time.Since(t) < lockTTL {
+			r.mu.Unlock()
+			return
 		}
-
-		r.lockedMessages[msgID] = time.Now()
+		r.locks[lockKey] = time.Now()
 		r.mu.Unlock()
 
-		data := cb.Data
-		for prefix, handler := range r.callbackHandlers {
-			if len(data) >= len(prefix) && data[:len(prefix)] == prefix {
-				handler(ctx, cb)
+		for prefix, h := range r.callbackHandlers {
+			if len(cb.Data) >= len(prefix) && cb.Data[:len(prefix)] == prefix {
+				h(ctx, cb)
 				return
 			}
 		}
-		log.Printf("no callback handler for %s", data)
+
+		log.Printf("no callback handler for %s", cb.Data)
 	}
-
-	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			now := time.Now()
-			r.mu.Lock()
-			for id, t := range r.lockedMessages {
-				if now.Sub(t) > lockTTL {
-					delete(r.lockedMessages, id)
-				}
-			}
-			r.mu.Unlock()
-		}
-	}()
 }
 
-func (r *Router) cleanupLockedMessages() {
-	ticker := time.NewTicker(1 * time.Minute)
+func (r *Router) cleanup() {
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		now := time.Now()
 		r.mu.Lock()
-		for id, t := range r.lockedMessages {
+		for k, t := range r.locks {
 			if now.Sub(t) > lockTTL {
-				delete(r.lockedMessages, id)
+				delete(r.locks, k)
 			}
 		}
 		r.mu.Unlock()
 	}
+}
+
+func buildLockKey(cb *tgbotapi.CallbackQuery, action string) string {
+	return fmt.Sprintf(
+		"%d:%d:%s",
+		cb.Message.Chat.ID,
+		cb.Message.MessageID,
+		action,
+	)
+}
+
+func extractPrefix(data string) string {
+	for i := 0; i < len(data); i++ {
+		if data[i] == ':' {
+			return data[:i]
+		}
+	}
+	return data
 }

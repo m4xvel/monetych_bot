@@ -71,7 +71,6 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("accept:", h.handleAcceptSelect)
 	h.router.RegisterCallback("cancel:", h.handlerCancelSelect)
 	h.router.RegisterCallback("declined:", h.handleDeclinedSelect)
-	h.router.RegisterCallback("back:", h.handleBack)
 	h.router.RegisterCallback("declined_reaffirm:",
 		h.handleDeclinedReaffirmSelect,
 	)
@@ -79,6 +78,7 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("confirmed_reaffirm:",
 		h.handleConfirmedReaffirmSelect,
 	)
+	h.router.RegisterCallback("back:", h.handleBack)
 	h.router.RegisterCallback("accept_client:", h.handleAcceptClientSelect)
 	h.router.RegisterCallback("rate:", h.handleRateSelect)
 
