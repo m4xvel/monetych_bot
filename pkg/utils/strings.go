@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"strings"
 )
 
 type Dynamic struct{}
@@ -99,7 +98,7 @@ func (d *Dynamic) AssessorAcceptedOrder(orderID int, itemGame, itemType string) 
 func (d *Dynamic) AssessorAcceptedYourOrder(token string) string {
 	return fmt.Sprintf(
 		"Токен для обращения в поддержку\n\n`%s`\n\nЭксперт принял твою заявку! 🎉\nДальнейшее общение будет прямо здесь — удобно и быстро 😌",
-		escapeMarkdown(token),
+		token,
 	)
 }
 
@@ -114,28 +113,4 @@ func (d *Dynamic) ApplicationManagementText(gameName,
 		gameName,
 		gameTypeName,
 	)
-}
-
-func escapeMarkdown(s string) string {
-	replacer := strings.NewReplacer(
-		"_", "\\_",
-		"*", "\\*",
-		"[", "\\[",
-		"]", "\\]",
-		"(", "\\(",
-		")", "\\)",
-		"~", "\\~",
-		"`", "\\`",
-		">", "\\>",
-		"#", "\\#",
-		"+", "\\+",
-		"-", "\\-",
-		"=", "\\=",
-		"|", "\\|",
-		"{", "\\{",
-		"}", "\\}",
-		".", "\\.",
-		"!", "\\!",
-	)
-	return replacer.Replace(s)
 }

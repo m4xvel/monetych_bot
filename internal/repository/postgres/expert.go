@@ -16,7 +16,11 @@ func NewExpertRepo(pool *pgxpool.Pool) *ExpertRepo {
 }
 
 func (r *ExpertRepo) Get(ctx context.Context) ([]domain.Expert, error) {
-	const q = `SELECT id, chat_id, topic_id FROM experts`
+	const q = `
+		SELECT id, chat_id, topic_id 
+		FROM experts 
+		WHERE is_active = true
+	`
 
 	rows, err := r.pool.Query(ctx, q)
 	if err != nil {

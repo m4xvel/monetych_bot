@@ -112,7 +112,9 @@ func (r *OrderRepo) Get(ctx context.Context, orderID int) (*domain.Order, error)
 	const q = `
 		SELECT 
 			o.id,
-			o.order_token,
+			substr(o.order_token,1,4) || '-' ||
+			substr(o.order_token,5,4) || '-' ||
+			substr(o.order_token,9,4) AS pretty_token,
 			o.thread_id,
 			o.game_name_at_purchase,
 			o.game_type_name_at_purchase,
