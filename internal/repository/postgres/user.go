@@ -59,3 +59,20 @@ func (r *UserRepo) Get(ctx context.Context, user domain.User) (*domain.User, err
 
 	return &u, nil
 }
+
+func (r *UserRepo) IncrementOrders(ctx context.Context, chatID int64) error {
+	const q = `
+		UPDATE users 
+		SET total_orders = total_orders + 1 
+		WHERE chat_id = $1
+	`
+
+	cmd, err := r.pool.Exec(ctx, q, chatID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

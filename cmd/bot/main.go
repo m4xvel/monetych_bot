@@ -49,7 +49,7 @@ func main() {
 	userService := usecase.NewUserService(userRepo)
 	stateService := usecase.NewStateService(stateRepo)
 	gameService := usecase.NewGameService(gameRepo)
-	orderService := usecase.NewOrderService(orderRepo)
+	orderService := usecase.NewOrderService(orderRepo, userRepo)
 	expertService := usecase.NewExpertService(expertRepo)
 	orderMessageService := usecase.NewOrderMessageService(orderMessageRepo)
 	reviewService := usecase.NewReviewService(reviewRepo)

@@ -23,7 +23,7 @@ func (h *Handler) handleAcceptClientSelect(
 	}
 	orderID, _ := strconv.Atoi(parts[1])
 
-	h.orderService.SetCompletedStatus(ctx, orderID)
+	h.orderService.SetCompletedStatus(ctx, orderID, chatID)
 
 	order, _ := h.orderService.GetOrderByID(ctx, orderID)
 

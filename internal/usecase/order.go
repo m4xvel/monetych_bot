@@ -7,11 +7,18 @@ import (
 )
 
 type OrderService struct {
-	repo domain.OrderRepository
+	orderRepo domain.OrderRepository
+	userRepo  domain.UserRepository
 }
 
-func NewOrderService(r domain.OrderRepository) *OrderService {
-	return &OrderService{repo: r}
+func NewOrderService(
+	or domain.OrderRepository,
+	ur domain.UserRepository,
+) *OrderService {
+	return &OrderService{
+		orderRepo: or,
+		userRepo:  ur,
+	}
 }
 
 func (s *OrderService) CreateOrder(
@@ -20,7 +27,7 @@ func (s *OrderService) CreateOrder(
 	userNameAtPurchase, gameNameAtPurchase,
 	gameTypeNameAtPurchase string,
 ) (int, error) {
-	return s.repo.Create(ctx, domain.Order{
+	return s.orderRepo.Create(ctx, domain.Order{
 		UserID:                 userID,
 		GameID:                 gameID,
 		GameTypeID:             gameTypeID,
@@ -36,7 +43,7 @@ func (s *OrderService) SetExpertData(
 	expertID int,
 	threadID int64,
 ) error {
-	return s.repo.SetActive(
+	return s.orderRepo.SetActive(
 		ctx, domain.Order{
 			ID:       orderID,
 			ExpertID: &expertID,
@@ -47,7 +54,7 @@ func (s *OrderService) SetExpertData(
 }
 
 func (s *OrderService) SetAcceptedStatus(ctx context.Context, orderID int) error {
-	return s.repo.UpdateStatus(
+	return s.orderRepo.UpdateStatus(
 		ctx, domain.Order{
 			ID:     orderID,
 			Status: domain.OrderAccepted,
@@ -57,7 +64,7 @@ func (s *OrderService) SetAcceptedStatus(ctx context.Context, orderID int) error
 }
 
 func (s *OrderService) SetExpertConfirmedStatus(ctx context.Context, orderID int) error {
-	return s.repo.UpdateStatus(
+	return s.orderRepo.UpdateStatus(
 		ctx, domain.Order{
 			ID:     orderID,
 			Status: domain.OrderExpertConfirmed,
@@ -66,8 +73,13 @@ func (s *OrderService) SetExpertConfirmedStatus(ctx context.Context, orderID int
 	)
 }
 
-func (s *OrderService) SetCompletedStatus(ctx context.Context, orderID int) error {
-	return s.repo.UpdateStatus(
+func (s *OrderService) SetCompletedStatus(
+	ctx context.Context,
+	orderID int,
+	chatID int64,
+) error {
+	s.userRepo.IncrementOrders(ctx, chatID)
+	return s.orderRepo.UpdateStatus(
 		ctx, domain.Order{
 			ID:     orderID,
 			Status: domain.OrderCompleted,
@@ -77,7 +89,7 @@ func (s *OrderService) SetCompletedStatus(ctx context.Context, orderID int) erro
 }
 
 func (s *OrderService) SetCancelStatus(ctx context.Context, orderID int) error {
-	return s.repo.UpdateStatus(
+	return s.orderRepo.UpdateStatus(
 		ctx, domain.Order{
 			ID:     orderID,
 			Status: domain.OrderCanceled,
@@ -87,7 +99,7 @@ func (s *OrderService) SetCancelStatus(ctx context.Context, orderID int) error {
 }
 
 func (s *OrderService) SetDeclinedStatus(ctx context.Context, orderID int) error {
-	return s.repo.UpdateStatus(
+	return s.orderRepo.UpdateStatus(
 		ctx, domain.Order{
 			ID:     orderID,
 			Status: domain.OrderDeclined,
@@ -98,5 +110,5 @@ func (s *OrderService) SetDeclinedStatus(ctx context.Context, orderID int) error
 
 func (s *OrderService) GetOrderByID(ctx context.Context,
 	orderID int) (*domain.Order, error) {
-	return s.repo.Get(ctx, orderID)
+	return s.orderRepo.Get(ctx, orderID)
 }
