@@ -86,6 +86,9 @@ func (h *Handler) registerRoutes() {
 }
 
 func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
+	if !h.expertGuard(ctx, upd) {
+		return
+	}
 	if !h.stateGuard(ctx, upd) {
 		return
 	}
@@ -171,6 +174,48 @@ func (h *Handler) renderEditControlPanel(
 	editMessage.ReplyMarkup = &markup
 
 	h.bot.Send(editMessage)
+}
+
+func (h *Handler) expertGuard(
+	ctx context.Context,
+	upd tgbotapi.Update,
+) bool {
+
+	chatID, ok := extractChatID(upd)
+	if !ok {
+		return true
+	}
+
+	experts, err := h.expertService.GetAllExperts()
+	if err != nil {
+		return true
+	}
+
+	isExpert := false
+	for _, e := range experts {
+		if chatID == e.ChatID {
+			isExpert = true
+			break
+		}
+	}
+
+	if !isExpert {
+		return true
+	}
+
+	if upd.Message != nil && upd.Message.IsCommand() {
+		if upd.Message.Command() == "start" {
+			return true
+		}
+
+		return false
+	}
+
+	if upd.Message != nil {
+		return false
+	}
+
+	return true
 }
 
 func (h *Handler) stateGuard(

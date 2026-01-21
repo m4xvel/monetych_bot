@@ -14,11 +14,18 @@ func (h *Handler) handleStartCommand(
 	chatID := chat.ID
 	name := chat.FirstName
 
+	experts, _ := h.expertService.GetAllExperts()
+	for _, e := range experts {
+		if chatID == e.ChatID {
+			h.bot.Request(tgbotapi.NewDeleteMyCommands())
+			return
+		}
+	}
+
 	commands := []tgbotapi.BotCommand{
 		{Command: "start", Description: h.text.StartMenuText},
 		{Command: "catalog", Description: h.text.CatalogMenuText},
 		{Command: "support", Description: h.text.SupportMenuText},
-		{Command: "reviews", Description: h.text.ReviewsMenuText},
 	}
 
 	h.bot.Request(tgbotapi.NewSetMyCommands(commands...))
