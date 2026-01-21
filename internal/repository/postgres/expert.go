@@ -17,7 +17,7 @@ func NewExpertRepo(pool *pgxpool.Pool) *ExpertRepo {
 
 func (r *ExpertRepo) Get(ctx context.Context) ([]domain.Expert, error) {
 	const q = `
-		SELECT id, chat_id, topic_id 
+		SELECT id, chat_id, topic_id, is_active
 		FROM experts 
 		WHERE is_active = true
 	`

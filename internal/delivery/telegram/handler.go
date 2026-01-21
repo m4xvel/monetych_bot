@@ -24,6 +24,7 @@ type Handler struct {
 	gameService         *usecase.GameService
 	orderService        *usecase.OrderService
 	expertService       *usecase.ExpertService
+	supportService      *usecase.SupportService
 	orderMessageService *usecase.OrderMessageService
 	reviewService       *usecase.ReviewService
 	router              *Router
@@ -39,6 +40,7 @@ func NewHandler(
 	gs *usecase.GameService,
 	os *usecase.OrderService,
 	es *usecase.ExpertService,
+	sups *usecase.SupportService,
 	rs *usecase.ReviewService,
 	oms *usecase.OrderMessageService,
 ) *Handler {
@@ -49,6 +51,7 @@ func NewHandler(
 		gameService:         gs,
 		orderService:        os,
 		expertService:       es,
+		supportService:      sups,
 		reviewService:       rs,
 		orderMessageService: oms,
 		router:              NewRouter(),
@@ -64,6 +67,7 @@ func NewHandler(
 func (h *Handler) registerRoutes() {
 	h.router.RegisterCommand("start", h.handleStartCommand)
 	h.router.RegisterCommand("catalog", h.handlerCatalogCommand)
+	h.router.RegisterCommand("search", h.supportOnly(h.SearchCommand))
 
 	h.router.RegisterCallback("game:", h.handleGameSelect)
 	h.router.RegisterCallback("type:", h.handleTypeSelect)
@@ -86,7 +90,10 @@ func (h *Handler) registerRoutes() {
 }
 
 func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
-	if !h.expertGuard(ctx, upd) {
+	if !h.expertGuard(upd) {
+		return
+	}
+	if !h.supportGuard(upd) {
 		return
 	}
 	if !h.stateGuard(ctx, upd) {
@@ -177,7 +184,6 @@ func (h *Handler) renderEditControlPanel(
 }
 
 func (h *Handler) expertGuard(
-	ctx context.Context,
 	upd tgbotapi.Update,
 ) bool {
 
@@ -209,6 +215,37 @@ func (h *Handler) expertGuard(
 		}
 
 		return false
+	}
+
+	if upd.Message != nil {
+		return false
+	}
+
+	return true
+}
+
+func (h *Handler) supportGuard(
+	upd tgbotapi.Update,
+) bool {
+
+	chatID, ok := extractChatID(upd)
+	if !ok {
+		return true
+	}
+
+	support := h.supportService.GetSupport()
+
+	if chatID != support.ChatID {
+		return true
+	}
+
+	if upd.Message != nil && upd.Message.IsCommand() {
+		switch upd.Message.Command() {
+		case "start", "search":
+			return true
+		default:
+			return false
+		}
 	}
 
 	if upd.Message != nil {
@@ -317,4 +354,14 @@ func (h *Handler) answerCallback(
 	text string,
 ) {
 	h.bot.Request(tgbotapi.NewCallback(cb.ID, text))
+}
+
+func (h *Handler) supportOnly(handler HandlerFunc) HandlerFunc {
+	return func(ctx context.Context, msg *tgbotapi.Message) {
+		support := h.supportService.GetSupport()
+		if msg.Chat.ID != support.ChatID {
+			return
+		}
+		handler(ctx, msg)
+	}
 }

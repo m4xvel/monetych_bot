@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type ReviewStatus string
 
@@ -12,11 +15,13 @@ const (
 )
 
 type Review struct {
-	ID      int
-	OrderID int
-	Rating  int
-	Text    *string
-	Status  ReviewStatus
+	ID          int
+	OrderID     int
+	Rating      int
+	Text        *string
+	Status      ReviewStatus
+	CreatedAt   *time.Time
+	PublishedAt *time.Time
 }
 
 type ReviewRepository interface {

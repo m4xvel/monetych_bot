@@ -43,6 +43,7 @@ func main() {
 	gameRepo := postgres.NewGameRepo(pool)
 	orderRepo := postgres.NewOrderRepo(pool)
 	expertRepo := postgres.NewExpertRepo(pool)
+	supportRepo := postgres.NewSupportRepo(pool)
 	orderMessageRepo := postgres.NewOrderMessageRepo(pool)
 	reviewRepo := postgres.NewReviewRepo(pool)
 
@@ -51,6 +52,7 @@ func main() {
 	gameService := usecase.NewGameService(gameRepo)
 	orderService := usecase.NewOrderService(orderRepo, userRepo)
 	expertService := usecase.NewExpertService(expertRepo)
+	supportService := usecase.NewSupportService(supportRepo)
 	orderMessageService := usecase.NewOrderMessageService(orderMessageRepo)
 	reviewService := usecase.NewReviewService(reviewRepo)
 
@@ -62,6 +64,10 @@ func main() {
 		log.Fatalf("failed to init expert cache: %v", err)
 	}
 
+	if err := supportService.InitCache(ctx); err != nil {
+		log.Fatalf("failed to init support cache: %v", err)
+	}
+
 	handler := telegram.NewHandler(
 		bot,
 		userService,
@@ -69,6 +75,7 @@ func main() {
 		gameService,
 		orderService,
 		expertService,
+		supportService,
 		reviewService,
 		orderMessageService,
 	)

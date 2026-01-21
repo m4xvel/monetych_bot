@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -139,4 +140,97 @@ func (r *OrderRepo) Get(ctx context.Context, orderID int) (*domain.Order, error)
 	}
 
 	return &o, nil
+}
+
+func (r *OrderRepo) FindByToken(
+	ctx context.Context,
+	token string,
+) (*domain.OrderFull, error) {
+	const q = `
+			SELECT
+				o.id, 
+				o.order_token,
+				o.status, 
+				o.thread_id, 
+				o.created_at, 
+				o.updated_at,
+				o.user_name_at_purchase, 
+				o.game_name_at_purchase, 
+				o.game_type_name_at_purchase,
+				u.id, 
+				u.chat_id, 
+				u.name, 
+				u.is_verified, 
+				u.created_at, 
+				u.total_orders,
+				e.id, 
+				e.chat_id, 
+				e.topic_id, 
+				e.is_active,
+				g.id, g.name,
+				gt.id, gt.name
+			FROM orders o
+			LEFT JOIN users u ON u.id = o.user_id
+			LEFT JOIN experts e ON e.id = o.expert_id
+			LEFT JOIN games g ON g.id = o.game_id
+			LEFT JOIN game_types gt ON gt.id = o.game_type_id
+			WHERE o.order_token = $1
+		`
+
+	of := domain.OrderFull{
+		User:      &domain.User{},
+		Expert:    &domain.Expert{},
+		Game:      &domain.Game{},
+		GameType:  &domain.GameType{},
+		UserState: &domain.UserState{},
+	}
+	err := r.pool.QueryRow(ctx, q, token).Scan(
+		&of.Order.ID,
+		&of.Order.Token,
+		&of.Order.Status,
+		&of.Order.ThreadID,
+		&of.Order.CreatedAt,
+		&of.Order.UpdatedAt,
+		&of.Order.UserNameAtPurchase,
+		&of.Order.GameNameAtPurchase,
+		&of.Order.GameTypeNameAtPurchase,
+		&of.User.ID,
+		&of.User.ChatID,
+		&of.User.Name,
+		&of.User.IsVerified,
+		&of.User.CreatedAt,
+		&of.User.TotalOrders,
+		&of.Expert.ID,
+		&of.Expert.ChatID,
+		&of.Expert.TopicID,
+		&of.Expert.IsActive,
+		&of.Game.ID,
+		&of.Game.Name,
+		&of.GameType.ID,
+		&of.GameType.Name,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	const userStateQ = `
+		SELECT 
+			state, 
+			order_id, 
+			updated_at
+		FROM user_state
+		WHERE user_id = $1
+	`
+
+	_ = r.pool.QueryRow(ctx, userStateQ, of.User.ID).Scan(
+		&of.UserState.State,
+		&of.UserState.OrderID,
+		&of.UserState.UpdatedAt,
+	)
+
+	return &of, nil
 }

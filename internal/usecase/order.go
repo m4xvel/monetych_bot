@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"regexp"
+	"strings"
 
 	"github.com/m4xvel/monetych_bot/internal/domain"
 )
@@ -111,4 +113,19 @@ func (s *OrderService) SetDeclinedStatus(ctx context.Context, orderID int) error
 func (s *OrderService) GetOrderByID(ctx context.Context,
 	orderID int) (*domain.Order, error) {
 	return s.orderRepo.Get(ctx, orderID)
+}
+
+func (s *OrderService) FindByToken(
+	ctx context.Context,
+	token string,
+) (*domain.OrderFull, error) {
+
+	t := regexp.MustCompile(`[^A-Z0-9]`).
+		ReplaceAllString(strings.ToUpper(token), "")
+
+	if len(t) != 12 {
+		return nil, ErrInvalidToken
+	}
+
+	return s.orderRepo.FindByToken(ctx, t)
 }

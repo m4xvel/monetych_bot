@@ -17,9 +17,23 @@ func (h *Handler) handleStartCommand(
 	experts, _ := h.expertService.GetAllExperts()
 	for _, e := range experts {
 		if chatID == e.ChatID {
-			h.bot.Request(tgbotapi.NewDeleteMyCommands())
 			return
 		}
+	}
+
+	support := h.supportService.GetSupport()
+	if chatID == support.ChatID {
+
+		commands := []tgbotapi.BotCommand{
+			{Command: "search", Description: h.text.SupportMenuText},
+		}
+
+		scope := tgbotapi.NewBotCommandScopeChat(support.ChatID)
+		cfg := tgbotapi.NewSetMyCommandsWithScope(scope, commands...)
+
+		h.bot.Request(cfg)
+
+		return
 	}
 
 	commands := []tgbotapi.BotCommand{
@@ -28,7 +42,9 @@ func (h *Handler) handleStartCommand(
 		{Command: "support", Description: h.text.SupportMenuText},
 	}
 
-	h.bot.Request(tgbotapi.NewSetMyCommands(commands...))
+	scope := tgbotapi.NewBotCommandScopeChat(chatID)
+	cfg := tgbotapi.NewSetMyCommandsWithScope(scope, commands...)
+	h.bot.Request(cfg)
 
 	h.bot.SetChatMenuButton(tgbotapi.SetChatMenuButtonConfig{
 		ChatID: chatID,

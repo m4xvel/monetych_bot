@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 )
 
 type StateName string
@@ -14,8 +15,9 @@ const (
 )
 
 type UserState struct {
-	State   StateName
-	OrderID *int
+	State     StateName
+	OrderID   *int
+	UpdatedAt *time.Time
 
 	ExpertTopicID *int64
 

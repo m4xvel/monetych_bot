@@ -30,11 +30,22 @@ type Order struct {
 	GameNameAtPurchase     string
 	GameTypeNameAtPurchase string
 
-	createdAt time.Time
-	updatedAt time.Time
+	CreatedAt *time.Time
+	UpdatedAt *time.Time
 
 	UserChatID int64
 	TopicID    *int64
+}
+
+type OrderFull struct {
+	Order Order
+
+	User      *User
+	Expert    *Expert
+	UserState *UserState
+
+	Game     *Game
+	GameType *GameType
 }
 
 type OrderRepository interface {
@@ -42,4 +53,5 @@ type OrderRepository interface {
 	UpdateStatus(ctx context.Context, order Order, status OrderStatus) error
 	SetActive(ctx context.Context, order Order, status OrderStatus) error
 	Get(ctx context.Context, orderID int) (*Order, error)
+	FindByToken(ctx context.Context, token string) (*OrderFull, error)
 }
