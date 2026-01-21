@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
@@ -110,14 +109,7 @@ func (r *UserStateRepo) GetByThreadID(
 			WHERE o.thread_id = $1
 		`
 
-	var reviewID sql.NullInt64
 	var us domain.UserState
-
-	if reviewID.Valid {
-		us.ReviewID = &reviewID.Int64
-	} else {
-		us.ReviewID = nil
-	}
 
 	err := r.pool.QueryRow(ctx, q, threadID).Scan(
 		&us.UserChatID,
