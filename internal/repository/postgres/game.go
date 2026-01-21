@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type GameRepo struct {
@@ -32,6 +33,9 @@ func (r *GameRepo) Get(
 
 	rows, err := r.pool.Query(ctx, q)
 	if err != nil {
+		logger.Log.Errorw("failed to query games with types",
+			"err", err,
+		)
 		return nil, err
 	}
 	defer rows.Close()
@@ -46,11 +50,18 @@ func (r *GameRepo) Get(
 			&r.TypeID,
 			&r.TypeName,
 		); err != nil {
+			logger.Log.Errorw("failed to scan game row",
+				"err", err,
+			)
 			return nil, err
 		}
 		out = append(out, r)
 	}
+
 	if err := rows.Err(); err != nil {
+		logger.Log.Errorw("rows error while iterating games",
+			"err", err,
+		)
 		return nil, err
 	}
 

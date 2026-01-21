@@ -3,9 +3,9 @@ package telegram
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func NewBot(token string, debug bool) (*tgbotapi.BotAPI, error) {
@@ -19,6 +19,11 @@ func NewBot(token string, debug bool) (*tgbotapi.BotAPI, error) {
 	}
 
 	bot.Debug = debug
-	log.Printf("Authorized on account %s (debug: %v)", bot.Self.UserName, debug)
+
+	logger.Log.Infow("telegram bot authorized",
+		"username", bot.Self.UserName,
+		"debug", debug,
+	)
+
 	return bot, nil
 }

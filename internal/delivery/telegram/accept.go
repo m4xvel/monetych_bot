@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func (h *Handler) handleAcceptSelect(
@@ -15,25 +16,82 @@ func (h *Handler) handleAcceptSelect(
 	cb *tgbotapi.CallbackQuery,
 ) {
 	chatID := cb.Message.Chat.ID
-
 	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+
+	logger.Log.Infow("expert accepted order click",
+		"callback_data", cb.Data,
+		"expert_chat_id", chatID,
+	)
+
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 4 {
+	if len(parts) < 5 {
+		logger.Log.Warnw("invalid accept callback data",
+			"chat_id", chatID,
+			"data", cb.Data,
+		)
 		return
 	}
 
-	orderID, _ := strconv.Atoi(parts[1])
-	messageUserID, _ := strconv.Atoi(parts[2])
-	chatUserID, _ := strconv.ParseInt(parts[3], 10, 64)
-	expertID, _ := strconv.Atoi(parts[4])
-
-	err := h.orderService.SetAcceptedStatus(ctx, orderID)
+	orderID, err := strconv.Atoi(parts[1])
 	if err != nil {
+		logger.Log.Warnw("failed to parse order id",
+			"value", parts[1],
+		)
 		return
 	}
 
-	order, _ := h.orderService.GetOrderByID(ctx, orderID)
-	expert, _ := h.expertService.GetExpertByID(expertID)
+	messageUserID, err := strconv.Atoi(parts[2])
+	if err != nil {
+		logger.Log.Warnw("failed to parse message id",
+			"value", parts[2],
+		)
+		return
+	}
+
+	chatUserID, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		logger.Log.Warnw("failed to parse user chat id",
+			"value", parts[3],
+		)
+		return
+	}
+
+	expertID, err := strconv.Atoi(parts[4])
+	if err != nil {
+		logger.Log.Warnw("failed to parse expert id",
+			"value", parts[4],
+		)
+		return
+	}
+
+	if err := h.orderService.SetAcceptedStatus(ctx, orderID); err != nil {
+		logger.Log.Warnw("failed to accept order",
+			"order_id", orderID,
+			"err", err,
+		)
+		return
+	}
+
+	logger.Log.Infow("order accepted",
+		"order_id", orderID,
+		"expert_id", expertID,
+	)
+
+	order, err := h.orderService.GetOrderByID(ctx, orderID)
+	if err != nil || order == nil {
+		logger.Log.Errorw("failed to get order after accept",
+			"order_id", orderID,
+		)
+		return
+	}
+
+	expert, err := h.expertService.GetExpertByID(expertID)
+	if err != nil {
+		logger.Log.Errorw("failed to get expert",
+			"expert_id", expertID,
+		)
+		return
+	}
 
 	threadID, err := h.createForumTopic(
 		h.textDynamic.TitleOrderTopic(
@@ -44,12 +102,25 @@ func (h *Handler) handleAcceptSelect(
 		expert.TopicID,
 	)
 	if err != nil {
-		fmt.Printf("failed to create forum topic: %v", err)
+		logger.Log.Errorw("failed to create forum topic",
+			"order_id", orderID,
+			"expert_id", expertID,
+			"err", err,
+		)
 		return
 	}
 
-	err = h.orderService.SetExpertData(ctx, orderID, expertID, threadID)
-	if err != nil {
+	logger.Log.Infow("forum topic created",
+		"order_id", orderID,
+		"thread_id", threadID,
+	)
+
+	if err := h.orderService.SetExpertData(ctx, orderID, expertID, threadID); err != nil {
+		logger.Log.Errorw("failed to assign expert to order",
+			"order_id", orderID,
+			"expert_id", expertID,
+			"err", err,
+		)
 		return
 	}
 
@@ -87,10 +158,17 @@ func (h *Handler) createForumTopic(
 
 	resp, err := h.bot.MakeRequest("createForumTopic", params)
 	if err != nil {
-		return 0, fmt.Errorf("createForumTopic failed: %w", err)
+		logger.Log.Errorw("telegram createForumTopic request failed",
+			"topic_id", topicID,
+			"err", err,
+		)
+		return 0, err
 	}
 
 	if !resp.Ok {
+		logger.Log.Errorw("telegram createForumTopic api error",
+			"description", resp.Description,
+		)
 		return 0, fmt.Errorf("telegram api error: %s", resp.Description)
 	}
 

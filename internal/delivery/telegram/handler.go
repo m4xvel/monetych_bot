@@ -8,6 +8,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/features"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 	"github.com/m4xvel/monetych_bot/internal/usecase"
 	"github.com/m4xvel/monetych_bot/pkg/utils"
 )
@@ -67,6 +68,7 @@ func NewHandler(
 func (h *Handler) registerRoutes() {
 	h.router.RegisterCommand("start", h.handleStartCommand)
 	h.router.RegisterCommand("catalog", h.handlerCatalogCommand)
+	h.router.RegisterCommand("support", h.handlerSupportCommand)
 	h.router.RegisterCommand("search", h.supportOnly(h.SearchCommand))
 
 	h.router.RegisterCallback("game:", h.handleGameSelect)
@@ -91,23 +93,35 @@ func (h *Handler) registerRoutes() {
 
 func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
 	if !h.expertGuard(upd) {
+		logger.Log.Warnw("update blocked by expert guard")
 		return
 	}
 	if !h.supportGuard(upd) {
+		logger.Log.Warnw("update blocked by support guard")
 		return
 	}
 	if !h.stateGuard(ctx, upd) {
+		logger.Log.Warnw("update blocked by state guard")
 		return
 	}
 	h.router.Route(ctx, upd)
 }
 
 func (h *Handler) deleteOrderMessage(ctx context.Context, orderID int) {
-
 	sentOrders, err := h.orderMessageService.GetByOrder(ctx, orderID)
 	if err != nil {
+		logger.Log.Errorw("failed to get order messages",
+			"order_id", orderID,
+			"err", err,
+		)
 		return
 	}
+
+	logger.Log.Infow("deleting order messages",
+		"order_id", orderID,
+		"count", len(sentOrders),
+	)
+
 	for _, sent := range sentOrders {
 		h.bot.Request(tgbotapi.NewDeleteMessage(
 			sent.ChatID,
@@ -209,15 +223,27 @@ func (h *Handler) expertGuard(
 		return true
 	}
 
+	logger.Log.Infow("expert interaction detected",
+		"chat_id", chatID,
+	)
+
 	if upd.Message != nil && upd.Message.IsCommand() {
 		if upd.Message.Command() == "start" {
 			return true
 		}
 
+		logger.Log.Warnw("expert action blocked",
+			"chat_id", chatID,
+		)
+
 		return false
 	}
 
 	if upd.Message != nil {
+		logger.Log.Warnw("expert action blocked",
+			"chat_id", chatID,
+		)
+
 		return false
 	}
 
@@ -244,11 +270,17 @@ func (h *Handler) supportGuard(
 		case "start", "search":
 			return true
 		default:
+			logger.Log.Warnw("support action blocked",
+				"chat_id", chatID,
+			)
 			return false
 		}
 	}
 
 	if upd.Message != nil {
+		logger.Log.Warnw("support action blocked",
+			"chat_id", chatID,
+		)
 		return false
 	}
 
@@ -272,6 +304,10 @@ func (h *Handler) stateGuard(
 
 	if state.State == domain.StateWritingReview {
 		if shouldAutoPublishReview(upd) {
+			logger.Log.Infow("auto publishing pending review",
+				"user_chat_id", *state.UserChatID,
+				"review_id", *state.ReviewID,
+			)
 			h.publishPendingReview(ctx, state)
 		}
 	}
@@ -285,6 +321,12 @@ func (h *Handler) stateGuard(
 			chatID,
 			"Вы уже общаетесь с экспертом.\nИспользуйте чат или дождитесь завершения заказа.",
 		))
+
+		logger.Log.Warnw("command blocked during communication",
+			"user_chat_id", chatID,
+			"state", state.State,
+		)
+
 		return false
 	}
 
@@ -301,6 +343,12 @@ func (h *Handler) stateGuard(
 			upd.CallbackQuery,
 			"Эта кнопка недоступна во время общения с экспертом",
 		)
+
+		logger.Log.Warnw("callback blocked during communication",
+			"user_chat_id", chatID,
+			"data", upd.CallbackQuery.Data,
+		)
+
 		return false
 	}
 
@@ -331,8 +379,16 @@ func (h *Handler) publishPendingReview(
 	}
 
 	if err := h.reviewService.Publish(ctx, *state.ReviewID); err != nil {
+		logger.Log.Errorw("failed to publish review",
+			"review_id", *state.ReviewID,
+			"err", err,
+		)
 		return
 	}
+
+	logger.Log.Infow("review published",
+		"review_id", *state.ReviewID,
+	)
 
 	h.stateService.SetStateIdle(ctx, *state.UserChatID)
 }

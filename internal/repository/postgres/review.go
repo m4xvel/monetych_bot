@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type ReviewRepo struct {
@@ -26,9 +27,19 @@ func (r *ReviewRepo) Create(ctx context.Context,
 		ON CONFLICT DO NOTHING
 	`
 
-	_, err := r.pool.Exec(ctx, q, review.OrderID, review.Rating)
+	cmd, err := r.pool.Exec(ctx, q, review.OrderID, review.Rating)
+	if err != nil {
+		logger.Log.Errorw("failed to create review",
+			"err", err,
+		)
+		return err
+	}
 
-	return err
+	if cmd.RowsAffected() == 0 {
+		return err
+	}
+
+	return nil
 }
 
 func (r *ReviewRepo) Set(
@@ -53,8 +64,10 @@ func (r *ReviewRepo) Set(
 		review.Status,
 		status,
 	)
-
 	if err != nil {
+		logger.Log.Errorw("failed to update review",
+			"err", err,
+		)
 		return err
 	}
 
@@ -83,13 +96,15 @@ func (r *ReviewRepo) Publish(
 		reviewID,
 		domain.ReviewPublished,
 	)
-
 	if err != nil {
+		logger.Log.Errorw("failed to publish review",
+			"err", err,
+		)
 		return err
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return err
+		return ErrNotFound
 	}
 
 	return nil

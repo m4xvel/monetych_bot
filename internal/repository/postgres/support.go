@@ -3,9 +3,9 @@ package postgres
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type SupportRepo struct {
@@ -26,13 +26,13 @@ func (r *SupportRepo) Get(ctx context.Context) (*domain.Support, error) {
 	`
 
 	var s domain.Support
-	err := r.pool.QueryRow(ctx, q).Scan(&s.ID, &s.ChatID, &s.ChatLink)
+	err := r.pool.QueryRow(ctx, q).
+		Scan(&s.ID, &s.ChatID, &s.ChatLink)
 
 	if err != nil {
-		return nil, err
-	}
-
-	if err == pgx.ErrNoRows {
+		logger.Log.Errorw("failed to get support",
+			"err", err,
+		)
 		return nil, err
 	}
 

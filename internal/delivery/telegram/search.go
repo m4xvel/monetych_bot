@@ -7,30 +7,56 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
-	token := msg.CommandArguments()
+	chatID := msg.Chat.ID
 
+	logger.Log.Infow("search command initiated",
+		"chat_id", chatID,
+	)
+
+	token := strings.TrimSpace(msg.CommandArguments())
 	if token == "" {
-		h.bot.Send(tgbotapi.NewMessage(
-			msg.Chat.ID,
+		logger.Log.Warnw("search command called without token",
+			"chat_id", chatID,
+		)
+
+		if _, err := h.bot.Send(tgbotapi.NewMessage(
+			chatID,
 			"Укажите токен.\nПример:\n/search ZW6T-HJTK-6WY2",
-		))
+		)); err != nil {
+			logger.Log.Errorw("failed to prompt token for search",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
 		return
 	}
-
-	// если нужно — нормализуем
-	token = strings.TrimSpace(token)
 
 	result, err := h.orderService.FindByToken(ctx, token)
 	if err != nil {
-		h.bot.Send(tgbotapi.NewMessage(
-			msg.Chat.ID,
-			"❌ Ничего не найдено по токену: "+token,
-		))
+		logger.Log.Warnw("order not found by token",
+			"chat_id", chatID,
+		)
+
+		if _, err := h.bot.Send(tgbotapi.NewMessage(
+			chatID,
+			"❌ Ничего не найдено по указанному токену",
+		)); err != nil {
+			logger.Log.Errorw("failed to send not found message",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
 		return
 	}
+
+	logger.Log.Infow("order found by token",
+		"chat_id", chatID,
+		"order_id", result.Order.ID,
+	)
 
 	text := FormatOrderFullMarkdown(result)
 
@@ -38,7 +64,13 @@ func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
 	reply.ParseMode = tgbotapi.ModeMarkdown
 	reply.ReplyToMessageID = msg.MessageID
 
-	h.bot.Send(reply)
+	if _, err := h.bot.Send(reply); err != nil {
+		logger.Log.Errorw("failed to send order search result",
+			"chat_id", chatID,
+			"order_id", result.Order.ID,
+			"err", err,
+		)
+	}
 }
 
 func FormatOrderFullMarkdown(of *domain.OrderFull) string {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func (h *Handler) handlerCatalogCommand(
@@ -12,7 +13,20 @@ func (h *Handler) handlerCatalogCommand(
 	msg *tgbotapi.Message,
 ) {
 	chatID := msg.Chat.ID
-	games, _ := h.gameService.GetAllGames()
+
+	logger.Log.Infow("catalog command initiated",
+		"chat_id", chatID,
+	)
+
+	games, err := h.gameService.GetAllGames()
+	if err != nil {
+		logger.Log.Errorw("failed to get games for catalog",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
+
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, g := range games {
 		btn := tgbotapi.NewInlineKeyboardButtonData(
@@ -24,7 +38,25 @@ func (h *Handler) handlerCatalogCommand(
 
 	message := tgbotapi.NewMessage(chatID, h.text.ChooseGame)
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
-	h.bot.Send(message)
 
-	h.stateService.SetStateIdle(ctx, chatID)
+	if _, err := h.bot.Send(message); err != nil {
+		logger.Log.Errorw("failed to send catalog message",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
+
+	if err := h.stateService.SetStateIdle(ctx, chatID); err != nil {
+		logger.Log.Errorw("failed to set idle state after catalog command",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
+
+	logger.Log.Infow("catalog ui rendered",
+		"chat_id", chatID,
+		"games_count", len(games),
+	)
 }

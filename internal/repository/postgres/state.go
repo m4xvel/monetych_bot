@@ -2,10 +2,11 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type UserStateRepo struct {
@@ -39,8 +40,14 @@ func (r *UserStateRepo) Set(
 	`
 
 	_, err := r.pool.Exec(ctx, q, chatID, state.State, state.OrderID)
+	if err != nil {
+		logger.Log.Errorw("failed to set user state",
+			"err", err,
+		)
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (r *UserStateRepo) GetByChatID(
@@ -77,12 +84,10 @@ func (r *UserStateRepo) GetByChatID(
 		&us.ReviewID,
 		&us.UserChatID,
 	)
-
 	if err != nil {
-		return nil, err
-	}
-
-	if err == pgx.ErrNoRows {
+		logger.Log.Errorw("failed to get user state by chat id",
+			"err", err,
+		)
 		return nil, err
 	}
 
@@ -105,18 +110,23 @@ func (r *UserStateRepo) GetByThreadID(
 			WHERE o.thread_id = $1
 		`
 
+	var reviewID sql.NullInt64
 	var us domain.UserState
+
+	if reviewID.Valid {
+		us.ReviewID = &reviewID.Int64
+	} else {
+		us.ReviewID = nil
+	}
 
 	err := r.pool.QueryRow(ctx, q, threadID).Scan(
 		&us.UserChatID,
 		&us.OrderStatus,
 	)
-
 	if err != nil {
-		return nil, err
-	}
-
-	if err == pgx.ErrNoRows {
+		logger.Log.Errorw("failed to get user state by thread id",
+			"err", err,
+		)
 		return nil, err
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type UserService struct {
@@ -24,6 +25,7 @@ func (s *UserService) AddUser(
 	name string,
 	getPhoto func() string,
 ) error {
+
 	err := s.users.Add(
 		ctx, domain.User{
 			ChatID: chatID,
@@ -33,20 +35,64 @@ func (s *UserService) AddUser(
 
 	if err != nil {
 		if err == ErrUserAlreadyExists {
+			logger.Log.Debugw("user already exists",
+				"chat_id", chatID,
+			)
 			return nil
 		}
+
+		logger.Log.Errorw("failed to add user",
+			"chat_id", chatID,
+			"err", err,
+		)
 		return err
 	}
 
+	logger.Log.Infow("user created",
+		"chat_id", chatID,
+		"name", name,
+	)
+
 	photoURL := getPhoto()
-	return s.users.UpdatePhoto(
-		ctx, domain.User{
+	if photoURL == "" {
+		return nil
+	}
+
+	if err := s.users.UpdatePhoto(
+		ctx,
+		domain.User{
 			PhotoURL: photoURL,
 			ChatID:   chatID,
 		},
+	); err != nil {
+
+		logger.Log.Errorw("failed to update user photo",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return err
+	}
+
+	logger.Log.Infow("user photo updated",
+		"chat_id", chatID,
 	)
+
+	return nil
 }
 
-func (s *UserService) GetByChatID(ctx context.Context, chatID int64) (*domain.User, error) {
-	return s.users.Get(ctx, domain.User{ChatID: chatID})
+func (s *UserService) GetByChatID(
+	ctx context.Context,
+	chatID int64,
+) (*domain.User, error) {
+
+	user, err := s.users.Get(ctx, domain.User{ChatID: chatID})
+	if err != nil {
+		logger.Log.Errorw("failed to get user by chat id",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return nil, err
+	}
+
+	return user, nil
 }

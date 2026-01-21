@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type OrderMessageRepo struct {
@@ -35,7 +36,14 @@ func (r *OrderMessageRepo) Save(ctx context.Context, orderMessage domain.OrderMe
 		orderMessage.ChatID,
 		orderMessage.MessageID,
 	)
-	return err
+	if err != nil {
+		logger.Log.Errorw("failed to save order message",
+			"err", err,
+		)
+		return err
+	}
+
+	return nil
 }
 
 func (r *OrderMessageRepo) Get(ctx context.Context, orderID int) ([]domain.OrderMessage, error) {
@@ -54,6 +62,9 @@ func (r *OrderMessageRepo) Get(ctx context.Context, orderID int) ([]domain.Order
 
 	rows, err := r.pool.Query(ctx, q, orderID)
 	if err != nil {
+		logger.Log.Errorw("failed to query order messages",
+			"err", err,
+		)
 		return nil, err
 	}
 	defer rows.Close()
@@ -71,14 +82,25 @@ func (r *OrderMessageRepo) Get(ctx context.Context, orderID int) ([]domain.Order
 			&om.CreatedAt,
 			&om.DeletedAt,
 		); err != nil {
+			logger.Log.Errorw("failed to scan order message row",
+				"err", err,
+			)
 			return nil, err
 		}
 
 		result = append(result, om)
 	}
 
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		logger.Log.Errorw("rows error while iterating order messages",
+			"err", err,
+		)
+		return nil, err
+	}
+
+	return result, nil
 }
+
 func (r *OrderMessageRepo) Delete(ctx context.Context, orderID int) error {
 	const q = `
 		UPDATE order_messages
@@ -93,6 +115,12 @@ func (r *OrderMessageRepo) Delete(ctx context.Context, orderID int) error {
 		time.Now(),
 		orderID,
 	)
+	if err != nil {
+		logger.Log.Errorw("failed to mark order messages as deleted",
+			"err", err,
+		)
+		return err
+	}
 
-	return err
+	return nil
 }

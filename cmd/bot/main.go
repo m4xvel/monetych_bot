@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"os/signal"
 	"syscall"
 	"time"
@@ -11,15 +10,33 @@ import (
 	"github.com/m4xvel/monetych_bot/internal/config"
 	"github.com/m4xvel/monetych_bot/internal/delivery/telegram"
 	"github.com/m4xvel/monetych_bot/internal/infra"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 	"github.com/m4xvel/monetych_bot/internal/repository/postgres"
 	"github.com/m4xvel/monetych_bot/internal/usecase"
 )
 
 func main() {
+
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Log.Fatalw("panic occurred", "panic", r)
+		}
+	}()
+
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		panic(err)
 	}
+
+	logger.Init(logger.Config{
+		Env: cfg.Env, // dev | prod
+	})
+	defer logger.Sync()
+
+	logger.Log.Infow("application starting",
+		"env", cfg.Env,
+		"debug", cfg.Debug,
+	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -29,14 +46,20 @@ func main() {
 
 	pool, err := infra.NewPostgresPool(dbCtx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		logger.Log.Fatalw("failed to connect to database", "err", err)
 	}
 	defer pool.Close()
 
+	logger.Log.Infow("database connected")
+
 	bot, err := telegram.NewBot(cfg.BotToken, cfg.Debug)
 	if err != nil {
-		log.Fatalf("failed to initialize bot: %v", err)
+		logger.Log.Fatalw("failed to initialize telegram bot", "err", err)
 	}
+
+	logger.Log.Infow("telegram bot initialized",
+		"bot_username", bot.Self.UserName,
+	)
 
 	userRepo := postgres.NewUserRepo(pool)
 	stateRepo := postgres.NewUserStateRepo(pool)
@@ -57,16 +80,18 @@ func main() {
 	reviewService := usecase.NewReviewService(reviewRepo)
 
 	if err := gameService.InitCache(ctx); err != nil {
-		log.Fatalf("failed to init game cache: %v", err)
+		logger.Log.Fatalw("failed to init game cache", "err", err)
 	}
 
 	if err := expertService.InitCache(ctx); err != nil {
-		log.Fatalf("failed to init expert cache: %v", err)
+		logger.Log.Fatalw("failed to init expert cache", "err", err)
 	}
 
 	if err := supportService.InitCache(ctx); err != nil {
-		log.Fatalf("failed to init support cache: %v", err)
+		logger.Log.Fatalw("failed to init support cache", "err", err)
 	}
+
+	logger.Log.Infow("caches initialized")
 
 	handler := telegram.NewHandler(
 		bot,
@@ -84,17 +109,27 @@ func main() {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
+	logger.Log.Infow("bot started, listening for updates")
+
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("shutdown requested, exiting")
+			logger.Log.Infow("shutdown requested")
 			return
 		case update, ok := <-updates:
 			if !ok {
-				log.Println("updates channel closed")
+				logger.Log.Warnw("updates channel closed")
 				return
 			}
-			go handler.Route(ctx, update)
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logger.Log.Errorw("panic in update handler", "panic", r)
+					}
+				}()
+
+				handler.Route(ctx, update)
+			}()
 		}
 	}
 }

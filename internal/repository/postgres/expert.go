@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type ExpertRepo struct {
@@ -24,6 +25,9 @@ func (r *ExpertRepo) Get(ctx context.Context) ([]domain.Expert, error) {
 
 	rows, err := r.pool.Query(ctx, q)
 	if err != nil {
+		logger.Log.Errorw("failed to query experts",
+			"err", err,
+		)
 		return nil, err
 	}
 	defer rows.Close()
@@ -36,12 +40,20 @@ func (r *ExpertRepo) Get(ctx context.Context) ([]domain.Expert, error) {
 			&e.ID,
 			&e.ChatID,
 			&e.TopicID,
+			&e.IsActive,
 		); err != nil {
+			logger.Log.Errorw("failed to scan expert row",
+				"err", err,
+			)
 			return nil, err
 		}
 		out = append(out, e)
 	}
+
 	if err := rows.Err(); err != nil {
+		logger.Log.Errorw("rows error while iterating experts",
+			"err", err,
+		)
 		return nil, err
 	}
 

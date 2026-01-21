@@ -6,6 +6,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func (h *Handler) handleMessage(
@@ -31,21 +32,37 @@ func (h *Handler) handleUserMessage(
 	chatID := msg.Chat.ID
 
 	state, err := h.stateService.GetStateByChatID(ctx, chatID)
-	if err != nil || state == nil {
+	if err != nil {
+		logger.Log.Errorw("failed to get user state",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
+	if state == nil {
+		logger.Log.Warnw("user state not found",
+			"chat_id", chatID,
+		)
 		return
 	}
 
 	switch state.State {
 
 	case domain.StateCommunication:
+		logger.Log.Infow("user message forwarded to expert",
+			"chat_id", chatID,
+			"order_id", state.OrderID,
+		)
 		h.forwardToExpert(state, msg)
 
 	case domain.StateStart:
+		logger.Log.Infow("user message in start state redirected to catalog",
+			"chat_id", chatID,
+		)
 		h.handlerCatalogCommand(ctx, msg)
 
 	case domain.StateWritingReview:
 		var text string
-
 		switch {
 		case msg.Text != "":
 			text = msg.Text
@@ -55,9 +72,36 @@ func (h *Handler) handleUserMessage(
 			return
 		}
 
-		h.reviewService.AddText(ctx, *state.ReviewID, text)
-		h.reviewService.Publish(ctx, *state.ReviewID)
-		h.stateService.SetStateIdle(ctx, chatID)
+		if err := h.reviewService.AddText(ctx, *state.ReviewID, text); err != nil {
+			logger.Log.Errorw("failed to add review text",
+				"chat_id", chatID,
+				"review_id", *state.ReviewID,
+				"err", err,
+			)
+			return
+		}
+
+		if err := h.reviewService.Publish(ctx, *state.ReviewID); err != nil {
+			logger.Log.Errorw("failed to publish review",
+				"chat_id", chatID,
+				"review_id", *state.ReviewID,
+				"err", err,
+			)
+			return
+		}
+
+		logger.Log.Infow("review published",
+			"chat_id", chatID,
+			"review_id", *state.ReviewID,
+		)
+
+		if err := h.stateService.SetStateIdle(ctx, chatID); err != nil {
+			logger.Log.Errorw("failed to set idle state after review",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
+
 		h.bot.Send(tgbotapi.NewMessage(chatID, h.text.ThanksForReviewText))
 	}
 }
@@ -84,17 +128,30 @@ func (h *Handler) handleExpertMessage(
 	ctx context.Context,
 	msg *tgbotapi.Message,
 ) {
-
 	if isSystemMessage(msg) {
 		return
 	}
 
 	state, err := h.stateService.GetStateByThreadID(ctx, msg.MessageThreadID)
-	if err != nil || state == nil {
+	if err != nil {
+		logger.Log.Errorw("failed to get state by thread id",
+			"thread_id", msg.MessageThreadID,
+			"err", err,
+		)
+		return
+	}
+	if state == nil {
+		logger.Log.Warnw("state not found for expert message",
+			"thread_id", msg.MessageThreadID,
+		)
 		return
 	}
 
 	if !canExpertWrite(*state.OrderStatus) {
+		logger.Log.Warnw("expert message blocked by order status",
+			"order_id", state.OrderID,
+			"status", state.OrderStatus,
+		)
 		return
 	}
 
@@ -104,7 +161,18 @@ func (h *Handler) handleExpertMessage(
 		"message_id":   fmt.Sprint(msg.MessageID),
 	}
 
-	h.bot.MakeRequest("copyMessage", params)
+	if _, err := h.bot.MakeRequest("copyMessage", params); err != nil {
+		logger.Log.Errorw("failed to forward expert message to user",
+			"order_id", state.OrderID,
+			"user_chat_id", state.UserChatID,
+			"err", err,
+		)
+		return
+	}
+
+	logger.Log.Infow("expert message forwarded to user",
+		"order_id", state.OrderID,
+	)
 }
 
 func int64PtrToStr(v *int64) string {

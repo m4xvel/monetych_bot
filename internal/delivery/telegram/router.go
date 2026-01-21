@@ -3,11 +3,11 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type HandlerFunc func(ctx context.Context, msg *tgbotapi.Message)
@@ -54,26 +54,55 @@ func (r *Router) Route(ctx context.Context, upd tgbotapi.Update) {
 		msg := upd.Message
 
 		if msg.IsCommand() {
-			if handler, ok := r.commandHandlers[msg.Command()]; ok {
+			cmd := msg.Command()
+
+			logger.Log.Infow("command received",
+				"user_id", msg.From.ID,
+				"username", msg.From.UserName,
+				"command", cmd,
+			)
+
+			if handler, ok := r.commandHandlers[cmd]; ok {
 				handler(ctx, msg)
 				return
 			}
+
+			logger.Log.Warnw("no command handler",
+				"user_id", msg.From.ID,
+				"command", cmd,
+			)
+			return
 		}
 
 		if r.messageHandler != nil {
+			logger.Log.Debugw("message received",
+				"user_id", msg.From.ID,
+				"text", msg.Text,
+			)
+
 			r.messageHandler(ctx, msg)
 			return
 		}
 
 	case upd.CallbackQuery != nil:
 		cb := upd.CallbackQuery
-
 		action := extractPrefix(cb.Data)
 		lockKey := buildLockKey(cb, action)
+
+		logger.Log.Infow("callback received",
+			"user_id", cb.From.ID,
+			"username", cb.From.UserName,
+			"action", action,
+		)
 
 		r.mu.Lock()
 		if t, ok := r.locks[lockKey]; ok && time.Since(t) < lockTTL {
 			r.mu.Unlock()
+
+			logger.Log.Warnw("callback ignored due to lock",
+				"user_id", cb.From.ID,
+				"action", action,
+			)
 			return
 		}
 		r.locks[lockKey] = time.Now()
@@ -86,7 +115,13 @@ func (r *Router) Route(ctx context.Context, upd tgbotapi.Update) {
 			}
 		}
 
-		log.Printf("no callback handler for %s", cb.Data)
+		logger.Log.Warnw("no callback handler",
+			"user_id", cb.From.ID,
+			"data", cb.Data,
+		)
+
+	default:
+		logger.Log.Debugw("unknown update received")
 	}
 }
 

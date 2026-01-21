@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type OrderService struct {
@@ -29,7 +30,7 @@ func (s *OrderService) CreateOrder(
 	userNameAtPurchase, gameNameAtPurchase,
 	gameTypeNameAtPurchase string,
 ) (int, error) {
-	return s.orderRepo.Create(ctx, domain.Order{
+	orderID, err := s.orderRepo.Create(ctx, domain.Order{
 		UserID:                 userID,
 		GameID:                 gameID,
 		GameTypeID:             gameTypeID,
@@ -37,6 +38,25 @@ func (s *OrderService) CreateOrder(
 		GameNameAtPurchase:     gameNameAtPurchase,
 		GameTypeNameAtPurchase: gameTypeNameAtPurchase,
 	})
+
+	if err != nil {
+		logger.Log.Errorw("failed to create order",
+			"user_id", userID,
+			"game_id", gameID,
+			"game_type_id", gameTypeID,
+			"err", err,
+		)
+		return 0, err
+	}
+
+	logger.Log.Infow("order created",
+		"order_id", orderID,
+		"user_id", userID,
+		"game_id", gameID,
+		"game_type_id", gameTypeID,
+	)
+
+	return orderID, nil
 }
 
 func (s *OrderService) SetExpertData(
@@ -45,7 +65,7 @@ func (s *OrderService) SetExpertData(
 	expertID int,
 	threadID int64,
 ) error {
-	return s.orderRepo.SetActive(
+	err := s.orderRepo.SetActive(
 		ctx, domain.Order{
 			ID:       orderID,
 			ExpertID: &expertID,
@@ -53,16 +73,49 @@ func (s *OrderService) SetExpertData(
 		},
 		domain.OrderAccepted,
 	)
+
+	if err != nil {
+		logger.Log.Errorw("failed to set expert data",
+			"order_id", orderID,
+			"expert_id", expertID,
+			"err", err,
+		)
+		return err
+	}
+
+	logger.Log.Infow("expert assigned to order",
+		"order_id", orderID,
+		"expert_id", expertID,
+	)
+
+	return nil
 }
 
 func (s *OrderService) SetAcceptedStatus(ctx context.Context, orderID int) error {
-	return s.orderRepo.UpdateStatus(
-		ctx, domain.Order{
+	err := s.orderRepo.UpdateStatus(
+		ctx,
+		domain.Order{
 			ID:     orderID,
 			Status: domain.OrderAccepted,
 		},
 		domain.OrderNew,
 	)
+
+	if err != nil {
+		logger.Log.Errorw("failed to accept order",
+			"order_id", orderID,
+			"from", domain.OrderNew,
+			"to", domain.OrderAccepted,
+			"err", err,
+		)
+		return err
+	}
+
+	logger.Log.Infow("order accepted",
+		"order_id", orderID,
+	)
+
+	return nil
 }
 
 func (s *OrderService) SetExpertConfirmedStatus(ctx context.Context, orderID int) error {
@@ -80,14 +133,38 @@ func (s *OrderService) SetCompletedStatus(
 	orderID int,
 	chatID int64,
 ) error {
-	s.userRepo.IncrementOrders(ctx, chatID)
-	return s.orderRepo.UpdateStatus(
-		ctx, domain.Order{
+	if err := s.userRepo.IncrementOrders(ctx, chatID); err != nil {
+		logger.Log.Errorw("failed to increment user orders",
+			"user_chat_id", chatID,
+			"order_id", orderID,
+			"err", err,
+		)
+		return err
+	}
+
+	err := s.orderRepo.UpdateStatus(
+		ctx,
+		domain.Order{
 			ID:     orderID,
 			Status: domain.OrderCompleted,
 		},
 		domain.OrderExpertConfirmed,
 	)
+
+	if err != nil {
+		logger.Log.Errorw("failed to complete order",
+			"order_id", orderID,
+			"err", err,
+		)
+		return err
+	}
+
+	logger.Log.Infow("order completed",
+		"order_id", orderID,
+		"user_chat_id", chatID,
+	)
+
+	return nil
 }
 
 func (s *OrderService) SetCancelStatus(ctx context.Context, orderID int) error {
@@ -124,6 +201,9 @@ func (s *OrderService) FindByToken(
 		ReplaceAllString(strings.ToUpper(token), "")
 
 	if len(t) != 12 {
+		logger.Log.Warnw("invalid order token",
+			"token_length", len(t),
+		)
 		return nil, ErrInvalidToken
 	}
 

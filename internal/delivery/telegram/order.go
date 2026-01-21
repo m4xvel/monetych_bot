@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func (h *Handler) handleOrderSelect(
@@ -15,19 +16,64 @@ func (h *Handler) handleOrderSelect(
 ) {
 	chatID := cb.Message.Chat.ID
 	messageID := cb.Message.MessageID
-
 	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+
+	logger.Log.Infow("order creation initiated",
+		"chat_id", chatID,
+	)
 
 	parts := strings.Split(cb.Data, ":")
 	if len(parts) < 3 {
+		logger.Log.Warnw("invalid order callback data",
+			"chat_id", chatID,
+			"data", cb.Data,
+		)
 		return
 	}
-	gameID, _ := strconv.Atoi(parts[1])
-	gameTypeID, _ := strconv.Atoi(parts[2])
 
-	u, _ := h.userService.GetByChatID(ctx, chatID)
-	g, _ := h.gameService.GetGameByID(gameID)
-	t, _ := h.gameService.GetTypeByID(gameTypeID)
+	gameID, err := strconv.Atoi(parts[1])
+	if err != nil {
+		logger.Log.Warnw("failed to parse game id",
+			"chat_id", chatID,
+			"value", parts[1],
+		)
+		return
+	}
+
+	gameTypeID, err := strconv.Atoi(parts[2])
+	if err != nil {
+		logger.Log.Warnw("failed to parse game type id",
+			"chat_id", chatID,
+			"value", parts[2],
+		)
+		return
+	}
+
+	u, err := h.userService.GetByChatID(ctx, chatID)
+	if err != nil || u == nil {
+		logger.Log.Warnw("user not found for order creation",
+			"chat_id", chatID,
+		)
+		return
+	}
+
+	g, err := h.gameService.GetGameByID(gameID)
+	if err != nil {
+		logger.Log.Warnw("game not found for order creation",
+			"chat_id", chatID,
+			"game_id", gameID,
+		)
+		return
+	}
+
+	t, err := h.gameService.GetTypeByID(gameTypeID)
+	if err != nil {
+		logger.Log.Warnw("game type not found for order creation",
+			"chat_id", chatID,
+			"game_type_id", gameTypeID,
+		)
+		return
+	}
 
 	id, err := h.orderService.CreateOrder(
 		ctx,
@@ -39,10 +85,24 @@ func (h *Handler) handleOrderSelect(
 		t.Name,
 	)
 	if err != nil {
+		logger.Log.Errorw("failed to create order",
+			"chat_id", chatID,
+			"user_id", u.ID,
+			"game_id", gameID,
+			"game_type_id", gameTypeID,
+			"err", err,
+		)
 		return
 	}
 
 	if id == 0 {
+		logger.Log.Warnw("order already active",
+			"chat_id", chatID,
+			"user_id", u.ID,
+			"game_id", gameID,
+			"game_type_id", gameTypeID,
+		)
+
 		h.bot.Send(tgbotapi.NewEditMessageText(
 			chatID,
 			messageID,
@@ -50,6 +110,12 @@ func (h *Handler) handleOrderSelect(
 		))
 		return
 	}
+
+	logger.Log.Infow("order created via telegram",
+		"order_id", id,
+		"user_id", u.ID,
+		"chat_id", chatID,
+	)
 
 	message := tgbotapi.NewMessage(
 		chatID,
@@ -80,7 +146,19 @@ func (h *Handler) notifyExpertsAboutOrder(
 	chatID int64,
 	gameName, gameTypeName string,
 ) {
-	experts, _ := h.expertService.GetAllExperts()
+	logger.Log.Infow("notifying experts about order",
+		"order_id", orderID,
+	)
+
+	experts, err := h.expertService.GetAllExperts()
+	if err != nil {
+		logger.Log.Errorw("failed to get experts for order notification",
+			"order_id", orderID,
+			"err", err,
+		)
+		return
+	}
+
 	for _, e := range experts {
 		btn := tgbotapi.NewInlineKeyboardButtonData(
 			"Принять",
@@ -96,8 +174,32 @@ func (h *Handler) notifyExpertsAboutOrder(
 			tgbotapi.NewInlineKeyboardRow(btn),
 		)
 
-		send, _ := h.bot.Send(message)
+		send, err := h.bot.Send(message)
+		if err != nil {
+			logger.Log.Errorw("failed to notify expert",
+				"order_id", orderID,
+				"expert_id", e.ID,
+				"err", err,
+			)
+			continue
+		}
 
-		h.orderMessageService.Save(ctx, orderID, send.Chat.ID, send.MessageID)
+		if err := h.orderMessageService.Save(
+			ctx,
+			orderID,
+			send.Chat.ID,
+			send.MessageID,
+		); err != nil {
+			logger.Log.Errorw("failed to save order message",
+				"order_id", orderID,
+				"expert_id", e.ID,
+				"err", err,
+			)
+		}
+
+		logger.Log.Infow("experts notified",
+			"order_id", orderID,
+			"experts_count", len(experts),
+		)
 	}
 }

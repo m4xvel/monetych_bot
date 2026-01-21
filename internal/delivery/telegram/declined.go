@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func (h *Handler) handleDeclinedSelect(
@@ -14,15 +15,49 @@ func (h *Handler) handleDeclinedSelect(
 	cb *tgbotapi.CallbackQuery,
 ) {
 	messageID := cb.Message.MessageID
-
 	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+
+	logger.Log.Infow("decline order initiated",
+		"callback_data", cb.Data,
+	)
+
 	parts := strings.Split(cb.Data, ":")
 	if len(parts) < 4 {
+		logger.Log.Warnw("invalid declined callback data",
+			"data", cb.Data,
+		)
 		return
 	}
-	orderID, _ := strconv.Atoi(parts[1])
-	topicID, _ := strconv.ParseInt(parts[2], 10, 64)
-	threadID, _ := strconv.ParseInt(parts[3], 10, 64)
+
+	orderID, err := strconv.Atoi(parts[1])
+	if err != nil {
+		logger.Log.Warnw("failed to parse order id for decline",
+			"value", parts[1],
+		)
+		return
+	}
+
+	topicID, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil {
+		logger.Log.Warnw("failed to parse topic id for decline",
+			"value", parts[2],
+		)
+		return
+	}
+
+	threadID, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		logger.Log.Warnw("failed to parse thread id for decline",
+			"value", parts[3],
+		)
+		return
+	}
+
+	logger.Log.Infow("decline confirmation requested",
+		"order_id", orderID,
+		"topic_id", topicID,
+		"thread_id", threadID,
+	)
 
 	btn := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.AcceptText,
@@ -42,8 +77,8 @@ func (h *Handler) handleDeclinedSelect(
 	editMessage := tgbotapi.NewEditMessageText(
 		topicID,
 		messageID,
-		h.text.ConfirmDeclineText)
-
+		h.text.ConfirmDeclineText,
+	)
 	editMessage.ReplyMarkup = &markup
 
 	h.bot.Send(editMessage)

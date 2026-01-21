@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type SupportService struct {
@@ -20,6 +21,9 @@ func NewSupportService(r domain.SupportRepository) *SupportService {
 func (s *SupportService) InitCache(ctx context.Context) error {
 	row, err := s.repo.Get(ctx)
 	if err != nil {
+		logger.Log.Errorw("failed to load support config",
+			"err", err,
+		)
 		return err
 	}
 
@@ -31,6 +35,11 @@ func (s *SupportService) InitCache(ctx context.Context) error {
 		ChatID:   row.ChatID,
 		ChatLink: row.ChatLink,
 	}
+
+	logger.Log.Infow("support config loaded",
+		"support_id", s.support.ID,
+		"chat_id", s.support.ChatID,
+	)
 
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type UserRepo struct {
@@ -24,11 +25,14 @@ func (r *UserRepo) Add(ctx context.Context, user domain.User) error {
 
 	tag, err := r.pool.Exec(ctx, q, user.ChatID, user.Name)
 	if err != nil {
+		logger.Log.Errorw("failed to insert user",
+			"err", err,
+		)
 		return ErrAdd
 	}
 
 	if tag.RowsAffected() == 0 {
-		return ErrUserAlreadyExists
+		return nil
 	}
 
 	return nil
@@ -41,7 +45,14 @@ func (r *UserRepo) UpdatePhoto(ctx context.Context, user domain.User) error {
 	WHERE chat_id = $2
 	`
 	_, err := r.pool.Exec(ctx, q, user.PhotoURL, user.ChatID)
-	return err
+	if err != nil {
+		logger.Log.Errorw("failed to update user photo",
+			"err", err,
+		)
+		return err
+	}
+
+	return nil
 }
 
 func (r *UserRepo) Get(ctx context.Context, user domain.User) (*domain.User, error) {
@@ -51,9 +62,13 @@ func (r *UserRepo) Get(ctx context.Context, user domain.User) (*domain.User, err
 	WHERE chat_id = $1
 	`
 	var u domain.User
+	err := r.pool.QueryRow(ctx, q, user.ChatID).
+		Scan(&u.ID, &u.ChatID, &u.Name)
 
-	err := r.pool.QueryRow(ctx, q, user.ChatID).Scan(&u.ID, &u.ChatID, &u.Name)
 	if err != nil {
+		logger.Log.Errorw("failed to get user",
+			"err", err,
+		)
 		return nil, err
 	}
 
@@ -69,10 +84,15 @@ func (r *UserRepo) IncrementOrders(ctx context.Context, chatID int64) error {
 
 	cmd, err := r.pool.Exec(ctx, q, chatID)
 	if err != nil {
+		logger.Log.Errorw("failed to increment user orders",
+			"err", err,
+		)
 		return err
 	}
+
 	if cmd.RowsAffected() == 0 {
 		return ErrNotFound
 	}
+
 	return nil
 }

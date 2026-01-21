@@ -4,34 +4,56 @@ import (
 	"context"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func (h *Handler) handleStartCommand(
 	ctx context.Context,
 	msg *tgbotapi.Message,
 ) {
-	chat := msg.Chat
-	chatID := chat.ID
-	name := chat.FirstName
+	chatID := msg.Chat.ID
 
-	experts, _ := h.expertService.GetAllExperts()
+	logger.Log.Infow("start command initiated",
+		"chat_id", chatID,
+	)
+
+	experts, err := h.expertService.GetAllExperts()
+	if err != nil {
+		logger.Log.Errorw("failed to get experts on start",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
+
 	for _, e := range experts {
 		if chatID == e.ChatID {
+			logger.Log.Infow("start command ignored for expert",
+				"chat_id", chatID,
+			)
 			return
 		}
 	}
 
 	support := h.supportService.GetSupport()
 	if chatID == support.ChatID {
+		logger.Log.Infow("start command for support",
+			"chat_id", chatID,
+		)
 
 		commands := []tgbotapi.BotCommand{
 			{Command: "search", Description: h.text.SupportMenuText},
 		}
 
-		scope := tgbotapi.NewBotCommandScopeChat(support.ChatID)
+		scope := tgbotapi.NewBotCommandScopeChat(chatID)
 		cfg := tgbotapi.NewSetMyCommandsWithScope(scope, commands...)
 
-		h.bot.Request(cfg)
+		if _, err := h.bot.Request(cfg); err != nil {
+			logger.Log.Errorw("failed to set support commands",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
 
 		return
 	}
@@ -44,7 +66,13 @@ func (h *Handler) handleStartCommand(
 
 	scope := tgbotapi.NewBotCommandScopeChat(chatID)
 	cfg := tgbotapi.NewSetMyCommandsWithScope(scope, commands...)
-	h.bot.Request(cfg)
+
+	if _, err := h.bot.Request(cfg); err != nil {
+		logger.Log.Errorw("failed to set user commands",
+			"chat_id", chatID,
+			"err", err,
+		)
+	}
 
 	h.bot.SetChatMenuButton(tgbotapi.SetChatMenuButtonConfig{
 		ChatID: chatID,
@@ -53,16 +81,38 @@ func (h *Handler) handleStartCommand(
 		},
 	})
 
-	h.userService.AddUser(
-		ctx, chatID, name, func() string {
+	if err := h.userService.AddUser(
+		ctx,
+		chatID,
+		msg.Chat.FirstName,
+		func() string {
 			return h.feature.GetUserAvatar(h.bot, chatID)
 		},
+	); err != nil {
+		logger.Log.Errorw("failed to add user on start",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
+
+	logger.Log.Infow("user initialized on start",
+		"chat_id", chatID,
 	)
 
-	h.bot.Send(tgbotapi.NewMessage(
-		chatID,
-		h.text.HelloText,
-	))
+	if _, err := h.bot.Send(
+		tgbotapi.NewMessage(chatID, h.text.HelloText),
+	); err != nil {
+		logger.Log.Errorw("failed to send hello message",
+			"chat_id", chatID,
+			"err", err,
+		)
+	}
 
-	h.stateService.SetStateStart(ctx, chatID)
+	if err := h.stateService.SetStateStart(ctx, chatID); err != nil {
+		logger.Log.Errorw("failed to set start state",
+			"chat_id", chatID,
+			"err", err,
+		)
+	}
 }

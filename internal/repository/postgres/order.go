@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type OrderRepo struct {
@@ -42,13 +43,14 @@ func (r *OrderRepo) Create(ctx context.Context, order domain.Order) (int, error)
 		order.GameNameAtPurchase,
 		order.GameTypeNameAtPurchase).Scan(&id)
 
-	if err == pgx.ErrNoRows {
-		return 0, nil
-	}
-
-	if err != nil {
+	if err != nil && err != pgx.ErrNoRows {
+		logger.Log.Errorw("order repo: create failed",
+			"user_id", order.UserID,
+			"err", err,
+		)
 		return 0, err
 	}
+
 	return id, nil
 }
 
@@ -66,7 +68,13 @@ func (r *OrderRepo) UpdateStatus(
 		AND status = $3
 	`
 	cmd, err := r.pool.Exec(ctx, q, order.ID, order.Status, status)
+
 	if err != nil {
+		logger.Log.Errorw("order repo: update status failed",
+			"order_id", order.ID,
+			"to_status", order.Status,
+			"err", err,
+		)
 		return err
 	}
 
@@ -98,7 +106,13 @@ func (r *OrderRepo) SetActive(
 		order.ThreadID,
 		status,
 	)
+
 	if err != nil {
+		logger.Log.Errorw("order repo: set active failed",
+			"order_id", order.ID,
+			"expert_id", order.ExpertID,
+			"err", err,
+		)
 		return err
 	}
 
@@ -136,6 +150,10 @@ func (r *OrderRepo) Get(ctx context.Context, orderID int) (*domain.Order, error)
 		&o.UserChatID,
 		&o.TopicID,
 	); err != nil {
+		logger.Log.Errorw("order repo: get failed",
+			"order_id", orderID,
+			"err", err,
+		)
 		return nil, err
 	}
 
@@ -210,10 +228,10 @@ func (r *OrderRepo) FindByToken(
 		&of.GameType.Name,
 	)
 
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
+		logger.Log.Errorw("order repo: find by token failed",
+			"err", err,
+		)
 		return nil, err
 	}
 
@@ -226,11 +244,17 @@ func (r *OrderRepo) FindByToken(
 		WHERE user_id = $1
 	`
 
-	_ = r.pool.QueryRow(ctx, userStateQ, of.User.ID).Scan(
+	err = r.pool.QueryRow(ctx, userStateQ, of.User.ID).Scan(
 		&of.UserState.State,
 		&of.UserState.OrderID,
 		&of.UserState.UpdatedAt,
 	)
+
+	if err != nil && err != sql.ErrNoRows {
+		logger.Log.Warnw("order repo: user state not found",
+			"user_id", of.User.ID,
+		)
+	}
 
 	return &of, nil
 }
