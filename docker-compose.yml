@@ -1,12 +1,12 @@
 services:
   bot-init:
-      image: busybox
-      command: >
-        sh -c "chown -R 65532:65532 /app/avatars"
-      volumes:
-        - avatars_data:/app/avatars
-      networks:
-        - backend
+    image: busybox
+    restart: "no"
+    command: chown -R 65532:65532 /app/avatars
+    volumes:
+      - avatars_data:/app/avatars
+    networks:
+      - backend
         
   bot:
     build:
@@ -15,15 +15,67 @@ services:
     container_name: telegram_bot
     env_file:
       - .env
+    depends_on:
+      - bot-init
     restart: unless-stopped
     command: ["/app/bot"]
     volumes:
       - avatars_data:/app/avatars
     networks:
       - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  loki:
+    image: grafana/loki:3.6.4
+    container_name: loki
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ./loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+    restart: unless-stopped
+    networks:
+      - backend
+
+  promtail:
+    image: grafana/promtail:3.6.0
+    container_name: promtail
+    command: -config.file=/etc/promtail/promtail.yml
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - promtail-positions:/positions
+    depends_on:
+    - loki
+    restart: unless-stopped
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - TERM=linux
+      - GF_PLUGINS_PREINSTALL=grafana-clock-panel,grafana-polystat-panel
+    ports:
+      - '3000:3000'
+    volumes:
+      - grafana_storage:/var/lib/grafana
+    networks:
+      - backend
 
 volumes:
   avatars_data:
+  loki-data:
+  promtail-positions:
+  grafana_storage:
 
 networks:
   backend:

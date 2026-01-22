@@ -14,16 +14,13 @@ type Config struct {
 }
 
 func Init(cfg Config) {
-	var zapCfg zap.Config
+	zapCfg := zap.NewProductionConfig()
 
-	switch cfg.Env {
-	case "prod":
-		zapCfg = zap.NewProductionConfig()
-		zapCfg.EncoderConfig.TimeKey = "timestamp"
-		zapCfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	default:
-		zapCfg = zap.NewDevelopmentConfig()
-	}
+	zapCfg.EncoderConfig.TimeKey = "ts"
+	zapCfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	zapCfg.EncoderConfig.LevelKey = "level"
+	zapCfg.EncoderConfig.MessageKey = "msg"
+	zapCfg.EncoderConfig.CallerKey = "caller"
 
 	level := zapcore.InfoLevel
 	if cfg.Env != "prod" {
@@ -31,7 +28,6 @@ func Init(cfg Config) {
 	}
 
 	zapCfg.Level = zap.NewAtomicLevelAt(level)
-
 	zapCfg.OutputPaths = []string{"stdout"}
 	zapCfg.ErrorOutputPaths = []string{"stderr"}
 
