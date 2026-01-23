@@ -19,11 +19,13 @@ type UserState struct {
 	OrderID   *int
 	UpdatedAt *time.Time
 
+	ExpertID      *int
 	ExpertTopicID *int64
 
 	OrderThreadID *int64
 	OrderStatus   *OrderStatus
 
+	UserID     *int
 	UserChatID *int64
 
 	ReviewID *int

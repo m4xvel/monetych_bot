@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -53,6 +54,41 @@ func (h *Handler) handleUserMessage(
 			"chat_id", chatID,
 			"order_id", state.OrderID,
 		)
+
+		raw, err := structToMap(msg)
+		if err != nil {
+			logger.Log.Errorw("failed to struct to map",
+				"chat_id", chatID,
+				"err", err,
+			)
+			return
+		}
+
+		text := extractText(msg)
+
+		media, msgType := extractMedia(msg)
+
+		if err := h.orderChatMessageService.SaveUserMessage(
+			ctx,
+			*state.OrderID,
+			*state.UserID,
+			msg.Chat.ID,
+			msg.MessageID,
+			msgType,
+			text,
+			media,
+			raw,
+		); err != nil {
+			logger.Log.Errorw("failed to save user message",
+				"err", err,
+			)
+			return
+		}
+
+		logger.Log.Infow("user message data save in database",
+			"order_id", state.OrderID,
+		)
+
 		h.forwardToExpert(state, msg)
 
 	case domain.StateStart:
@@ -155,6 +191,40 @@ func (h *Handler) handleExpertMessage(
 		return
 	}
 
+	raw, err := structToMap(msg)
+	if err != nil {
+		logger.Log.Errorw("failed to struct to map",
+			"chat_id", msg.Chat.ID,
+			"err", err,
+		)
+		return
+	}
+
+	text := extractText(msg)
+
+	media, msgType := extractMedia(msg)
+
+	if err := h.orderChatMessageService.SaveExpertMessage(
+		ctx,
+		*state.OrderID,
+		*state.ExpertID,
+		msg.Chat.ID,
+		msg.MessageID,
+		msgType,
+		text,
+		media,
+		raw,
+	); err != nil {
+		logger.Log.Errorw("failed to save expert message",
+			"err", err,
+		)
+		return
+	}
+
+	logger.Log.Infow("expert message data save in database",
+		"order_id", state.OrderID,
+	)
+
 	params := tgbotapi.Params{
 		"chat_id":      int64PtrToStr(state.UserChatID),
 		"from_chat_id": fmt.Sprint(msg.Chat.ID),
@@ -173,6 +243,73 @@ func (h *Handler) handleExpertMessage(
 	logger.Log.Infow("expert message forwarded to user",
 		"order_id", state.OrderID,
 	)
+}
+
+func extractText(msg *tgbotapi.Message) *string {
+	switch {
+	case msg.Text != "":
+		return &msg.Text
+	case msg.Caption != "":
+		return &msg.Caption
+	default:
+		return nil
+	}
+}
+
+func extractMedia(
+	msg *tgbotapi.Message,
+) (map[string]any, domain.MessageType) {
+	switch {
+	case len(msg.Photo) > 0:
+		p := msg.Photo[len(msg.Photo)-1]
+		return map[string]any{
+			"file_id":        p.FileID,
+			"file_unique_id": p.FileUniqueID,
+			"width":          p.Width,
+			"height":         p.Height,
+		}, domain.MessagePhoto
+
+	case msg.Document != nil:
+		return map[string]any{
+			"file_id":        msg.Document.FileID,
+			"file_unique_id": msg.Document.FileUniqueID,
+			"file_name":      msg.Document.FileName,
+			"mime_type":      msg.Document.MimeType,
+			"file_size":      msg.Document.FileSize,
+		}, domain.MessageDocument
+
+	case msg.Video != nil:
+		return map[string]any{
+			"file_id":        msg.Video.FileID,
+			"file_unique_id": msg.Video.FileUniqueID,
+			"duration":       msg.Video.Duration,
+			"mime_type":      msg.Video.MimeType,
+		}, domain.MessageVideo
+
+	case msg.Voice != nil:
+		return map[string]any{
+			"file_id":        msg.Voice.FileID,
+			"file_unique_id": msg.Voice.FileUniqueID,
+			"duration":       msg.Voice.Duration,
+		}, domain.MessageVoice
+	}
+
+	if msg.Text != "" || msg.Caption != "" {
+		return nil, domain.MessageText
+	}
+
+	return nil, domain.MessageOther
+}
+
+func structToMap(v any) (map[string]any, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]any
+	err = json.Unmarshal(b, &m)
+	return m, err
 }
 
 func int64PtrToStr(v *int64) string {

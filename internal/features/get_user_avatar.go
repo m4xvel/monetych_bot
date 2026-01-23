@@ -18,7 +18,7 @@ import (
 const (
 	AvatarDir        = "/app/avatars"
 	MaxAvatarSize    = 5 << 20 // 5 MB
-	DefaultAvatarURL = AvatarDir + "/default.jpg"
+	DefaultAvatarURL = AvatarDir + "/default.png"
 )
 
 func (f *Features) GetUserAvatar(bot *tgbotapi.BotAPI, userID int64) string {

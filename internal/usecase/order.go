@@ -209,3 +209,10 @@ func (s *OrderService) FindByToken(
 
 	return s.orderRepo.FindByToken(ctx, t)
 }
+
+func (s *OrderService) FindByID(
+	ctx context.Context,
+	orderID int,
+) (*domain.OrderFull, error) {
+	return s.orderRepo.FindByID(ctx, orderID)
+}

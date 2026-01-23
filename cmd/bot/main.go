@@ -68,6 +68,7 @@ func main() {
 	expertRepo := postgres.NewExpertRepo(pool)
 	supportRepo := postgres.NewSupportRepo(pool)
 	orderMessageRepo := postgres.NewOrderMessageRepo(pool)
+	orderChatMessageRepo := postgres.NewOrderChatMessagesRepo(pool)
 	reviewRepo := postgres.NewReviewRepo(pool)
 
 	userService := usecase.NewUserService(userRepo)
@@ -77,6 +78,8 @@ func main() {
 	expertService := usecase.NewExpertService(expertRepo)
 	supportService := usecase.NewSupportService(supportRepo)
 	orderMessageService := usecase.NewOrderMessageService(orderMessageRepo)
+	orderChatMessageService := usecase.
+		NewOrderChatMessageService(orderChatMessageRepo)
 	reviewService := usecase.NewReviewService(reviewRepo)
 
 	if err := gameService.InitCache(ctx); err != nil {
@@ -103,6 +106,7 @@ func main() {
 		supportService,
 		reviewService,
 		orderMessageService,
+		orderChatMessageService,
 	)
 
 	u := tgbotapi.NewUpdate(0)

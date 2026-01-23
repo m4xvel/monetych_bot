@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 func (h *Handler) handlerSupportCommand(
@@ -19,7 +20,20 @@ func (h *Handler) handlerSupportCommand(
 		chatID,
 		fmt.Sprintf("Служба технической поддержи: %s", support.ChatLink),
 	)
-	h.bot.Send(message)
 
-	h.stateService.SetStateIdle(ctx, chatID)
+	if _, err := h.bot.Send(message); err != nil {
+		logger.Log.Errorw("failed to send support message",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
+
+	if err := h.stateService.SetStateIdle(ctx, chatID); err != nil {
+		logger.Log.Errorw("failed to set idle state after support command",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 }

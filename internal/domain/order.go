@@ -46,6 +46,16 @@ type OrderFull struct {
 
 	Game     *Game
 	GameType *GameType
+
+	Messages []ChatMessage
+}
+
+type ChatMessage struct {
+	SenderRole  SenderRole
+	MessageType MessageType
+	Text        *string
+	Media       map[string]any
+	CreatedAt   time.Time
 }
 
 type OrderRepository interface {
@@ -54,4 +64,5 @@ type OrderRepository interface {
 	SetActive(ctx context.Context, order Order, status OrderStatus) error
 	Get(ctx context.Context, orderID int) (*Order, error)
 	FindByToken(ctx context.Context, token string) (*OrderFull, error)
+	FindByID(ctx context.Context, orderID int) (*OrderFull, error)
 }

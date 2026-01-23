@@ -19,19 +19,20 @@ type SentOrder struct {
 }
 
 type Handler struct {
-	bot                 *tgbotapi.BotAPI
-	userService         *usecase.UserService
-	stateService        *usecase.StateService
-	gameService         *usecase.GameService
-	orderService        *usecase.OrderService
-	expertService       *usecase.ExpertService
-	supportService      *usecase.SupportService
-	orderMessageService *usecase.OrderMessageService
-	reviewService       *usecase.ReviewService
-	router              *Router
-	feature             *features.Features
-	text                *utils.Messages
-	textDynamic         *utils.Dynamic
+	bot                     *tgbotapi.BotAPI
+	userService             *usecase.UserService
+	stateService            *usecase.StateService
+	gameService             *usecase.GameService
+	orderService            *usecase.OrderService
+	expertService           *usecase.ExpertService
+	supportService          *usecase.SupportService
+	orderMessageService     *usecase.OrderMessageService
+	orderChatMessageService *usecase.OrderChatMessageService
+	reviewService           *usecase.ReviewService
+	router                  *Router
+	feature                 *features.Features
+	text                    *utils.Messages
+	textDynamic             *utils.Dynamic
 }
 
 func NewHandler(
@@ -44,21 +45,23 @@ func NewHandler(
 	sups *usecase.SupportService,
 	rs *usecase.ReviewService,
 	oms *usecase.OrderMessageService,
+	ocms *usecase.OrderChatMessageService,
 ) *Handler {
 	h := &Handler{
-		bot:                 bot,
-		userService:         us,
-		stateService:        ss,
-		gameService:         gs,
-		orderService:        os,
-		expertService:       es,
-		supportService:      sups,
-		reviewService:       rs,
-		orderMessageService: oms,
-		router:              NewRouter(),
-		feature:             features.NewFeatures(),
-		text:                utils.NewMessages(),
-		textDynamic:         utils.NewDynamic(),
+		bot:                     bot,
+		userService:             us,
+		stateService:            ss,
+		gameService:             gs,
+		orderService:            os,
+		expertService:           es,
+		supportService:          sups,
+		reviewService:           rs,
+		orderMessageService:     oms,
+		orderChatMessageService: ocms,
+		router:                  NewRouter(),
+		feature:                 features.NewFeatures(),
+		text:                    utils.NewMessages(),
+		textDynamic:             utils.NewDynamic(),
 	}
 
 	h.registerRoutes()
@@ -87,6 +90,8 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("back:", h.handleBack)
 	h.router.RegisterCallback("accept_client:", h.handleAcceptClientSelect)
 	h.router.RegisterCallback("rate:", h.handleRateSelect)
+
+	h.router.RegisterCallback("show_media:", h.handleShowMedia)
 
 	h.router.RegisterMessageHandler(h.handleMessage)
 }

@@ -60,6 +60,7 @@ func (r *UserStateRepo) GetByChatID(
 				e.topic_id,
 				o.thread_id,
 				r.id,
+				u.id,
 				u.chat_id
 			FROM users u
 			JOIN user_state us
@@ -81,6 +82,7 @@ func (r *UserStateRepo) GetByChatID(
 		&us.ExpertTopicID,
 		&us.OrderThreadID,
 		&us.ReviewID,
+		&us.UserID,
 		&us.UserChatID,
 	)
 	if err != nil {
@@ -98,22 +100,28 @@ func (r *UserStateRepo) GetByThreadID(
 	threadID int64,
 ) (*domain.UserState, error) {
 	const q = `
-			SELECT 
+			SELECT
+				us.order_id,
 				u.chat_id,
-				o.status
+				o.status,
+				e.id
 			FROM users u
 			JOIN user_state us
     		ON us.user_id = u.id
 			LEFT JOIN orders o
 				ON o.id = us.order_id
+			LEFT JOIN experts e
+				ON e.id = o.expert_id
 			WHERE o.thread_id = $1
 		`
 
 	var us domain.UserState
 
 	err := r.pool.QueryRow(ctx, q, threadID).Scan(
+		&us.OrderID,
 		&us.UserChatID,
 		&us.OrderStatus,
+		&us.ExpertID,
 	)
 	if err != nil {
 		logger.Log.Errorw("failed to get user state by thread id",
