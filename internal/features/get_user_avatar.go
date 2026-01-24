@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 const (
@@ -21,14 +21,17 @@ const (
 	DefaultAvatarURL = AvatarDir + "/default.png"
 )
 
-func (f *Features) GetUserAvatar(bot *tgbotapi.BotAPI, userID int64) string {
+func (f *Features) GetUserAvatar(bot *tgbotapi.BotAPI, chatID int64) string {
 	photos, err := bot.GetUserProfilePhotos(tgbotapi.UserProfilePhotosConfig{
-		UserID: userID,
+		UserID: chatID,
 		Limit:  1,
 	})
 
 	if err != nil || photos.TotalCount == 0 {
-		log.Println("GetUserProfilePhotos error:", err)
+		logger.Log.Warnw("user photo not found",
+			"chat_id", chatID,
+			"err", err,
+		)
 		return DefaultAvatarURL
 	}
 
@@ -36,17 +39,27 @@ func (f *Features) GetUserAvatar(bot *tgbotapi.BotAPI, userID int64) string {
 
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
-		log.Println("GetFile error:", err)
+		logger.Log.Errorw("failed to get photo file",
+			"chat_id", chatID,
+			"err", err,
+		)
 		return DefaultAvatarURL
 	}
 
 	telegramURL := file.Link(bot.Token)
 
-	avatarURL, err := f.downloadFile(telegramURL, userID)
+	avatarURL, err := f.downloadFile(telegramURL, chatID)
 	if err != nil {
-		log.Println("download avatar error:", err)
+		logger.Log.Errorw("failed to download photo file",
+			"chat_id", chatID,
+			"err", err,
+		)
 		return DefaultAvatarURL
 	}
+
+	logger.Log.Infow("photo successfully download",
+		"chat_id", chatID,
+	)
 
 	return avatarURL
 }
