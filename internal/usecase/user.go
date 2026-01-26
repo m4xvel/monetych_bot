@@ -48,22 +48,6 @@ func (s *UserService) AddUser(
 		return err
 	}
 
-	url, err := s.users.GetPhoto(ctx, chatID)
-	if err != nil {
-		logger.Log.Errorw("failed to get user photo",
-			"chat_id", chatID,
-			"err", err,
-		)
-		return err
-	}
-
-	if url != "" {
-		logger.Log.Infow("user already has a photo",
-			"chat_id", chatID,
-		)
-		return nil
-	}
-
 	photoURL := getPhoto()
 	if photoURL == "" {
 		return nil

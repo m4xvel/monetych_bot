@@ -11,6 +11,7 @@ type Config struct {
 	Env         string
 	BotToken    string
 	DatabaseURL string
+	KeyBase64   string
 	Debug       bool
 }
 
@@ -21,6 +22,7 @@ func Load() (*Config, error) {
 		Env:         getEnv("APP_ENV", "dev"),
 		BotToken:    os.Getenv("BOT_TOKEN"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
+		KeyBase64:   os.Getenv("CHAT_CRYPTO_KEY"),
 		Debug:       os.Getenv("DEBUG") == "true",
 	}
 
@@ -38,6 +40,10 @@ func (c *Config) validate() error {
 
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("DATABASE_URL is not set")
+	}
+
+	if c.KeyBase64 == "" {
+		return fmt.Errorf("CHAT_CRYPTO_KEY is not set")
 	}
 
 	if c.Env != "dev" && c.Env != "prod" {

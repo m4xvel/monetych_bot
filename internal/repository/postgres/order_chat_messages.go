@@ -5,42 +5,49 @@ import (
 	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/m4xvel/monetych_bot/internal/crypto"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type OrderChatMessagesRepo struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	crypto *crypto.Service
 }
 
-func NewOrderChatMessagesRepo(pool *pgxpool.Pool) *OrderChatMessagesRepo {
-	return &OrderChatMessagesRepo{pool: pool}
+func NewOrderChatMessagesRepo(
+	pool *pgxpool.Pool,
+	crypto *crypto.Service,
+) *OrderChatMessagesRepo {
+	return &OrderChatMessagesRepo{
+		pool:   pool,
+		crypto: crypto,
+	}
 }
 
 func (r *OrderChatMessagesRepo) Save(
 	ctx context.Context,
 	msg *domain.OrderChatMessages,
 ) error {
-	var mediaJSON []byte
-	var rawJSON []byte
+	var textEnc []byte
+	var mediaEnc []byte
 	var err error
 
-	if msg.Media != nil {
-		mediaJSON, err = json.Marshal(msg.Media)
+	if msg.Text != nil {
+		textEnc, err = r.crypto.Encrypt([]byte(*msg.Text))
 		if err != nil {
-			logger.Log.Errorw("failed to marshaling msg.Media",
-				"err", err,
-			)
 			return err
 		}
 	}
 
-	if msg.RawPayload != nil {
-		rawJSON, err = json.Marshal(msg.RawPayload)
+	if msg.Media != nil {
+		raw, err := json.Marshal(msg.Media)
 		if err != nil {
-			logger.Log.Errorw("failed to marshaling msg.RawPayload",
-				"err", err,
-			)
+			return err
+		}
+
+		mediaEnc, err = r.crypto.Encrypt(raw)
+		if err != nil {
 			return err
 		}
 	}
@@ -54,11 +61,10 @@ func (r *OrderChatMessagesRepo) Save(
 			chat_id,
 			message_id,
 			message_type,
-			text,
-			media,
-			raw_payload
+			text_enc,
+			media_enc
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		ON CONFLICT DO NOTHING
 	`
 
@@ -70,15 +76,12 @@ func (r *OrderChatMessagesRepo) Save(
 		msg.ChatID,
 		msg.MessageID,
 		msg.MessageType,
-		msg.Text,
-		mediaJSON,
-		rawJSON,
+		textEnc,
+		mediaEnc,
 	)
 
 	if err != nil {
-		logger.Log.Errorw("failed to insert chat_message",
-			"err", err,
-		)
+		logger.Log.Errorw("insert chat message failed", "err", err)
 		return err
 	}
 

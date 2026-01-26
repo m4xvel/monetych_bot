@@ -32,7 +32,6 @@ type OrderChatMessages struct {
 	MessageType    MessageType
 	Text           *string
 	Media          map[string]any
-	RawPayload     map[string]any
 	CreatedAt      time.Time
 }
 

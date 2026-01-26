@@ -8,6 +8,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/config"
+	"github.com/m4xvel/monetych_bot/internal/crypto"
 	"github.com/m4xvel/monetych_bot/internal/delivery/telegram"
 	"github.com/m4xvel/monetych_bot/internal/infra"
 	"github.com/m4xvel/monetych_bot/internal/logger"
@@ -61,14 +62,19 @@ func main() {
 		"bot_username", bot.Self.UserName,
 	)
 
+	keyBase64, err := crypto.New(cfg.KeyBase64)
+	if err != nil {
+		logger.Log.Fatalw("failed to initialize key crypto", "err", err)
+	}
+
 	userRepo := postgres.NewUserRepo(pool)
 	stateRepo := postgres.NewUserStateRepo(pool)
 	gameRepo := postgres.NewGameRepo(pool)
-	orderRepo := postgres.NewOrderRepo(pool)
+	orderRepo := postgres.NewOrderRepo(pool, keyBase64)
 	expertRepo := postgres.NewExpertRepo(pool)
 	supportRepo := postgres.NewSupportRepo(pool)
 	orderMessageRepo := postgres.NewOrderMessageRepo(pool)
-	orderChatMessageRepo := postgres.NewOrderChatMessagesRepo(pool)
+	orderChatMessageRepo := postgres.NewOrderChatMessagesRepo(pool, keyBase64)
 	reviewRepo := postgres.NewReviewRepo(pool)
 
 	userService := usecase.NewUserService(userRepo)

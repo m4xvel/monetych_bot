@@ -63,6 +63,7 @@ type OrderRepository interface {
 	UpdateStatus(ctx context.Context, order Order, status OrderStatus) error
 	SetActive(ctx context.Context, order Order, status OrderStatus) error
 	Get(ctx context.Context, orderID int) (*Order, error)
+	FindByField(ctx context.Context, where string, arg any) (*OrderFull, error)
 	FindByToken(ctx context.Context, token string) (*OrderFull, error)
-	FindByID(ctx context.Context, orderID int) (*OrderFull, error)
+	FindByID(ctx context.Context, id int) (*OrderFull, error)
 }

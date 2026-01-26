@@ -60,28 +60,6 @@ func (r *UserRepo) UpdatePhoto(ctx context.Context, user domain.User) error {
 	return nil
 }
 
-func (r *UserRepo) GetPhoto(
-	ctx context.Context,
-	chatID int64,
-) (string, error) {
-	const q = `
-			SELECT img_url
-			FROM users
-			WHERE chat_id = $1
-		`
-	var url string
-	err := r.pool.QueryRow(ctx, q, chatID).Scan(&url)
-
-	if err != nil {
-		logger.Log.Errorw("failed to get photo url",
-			"err", err,
-		)
-		return "", err
-	}
-
-	return url, nil
-}
-
 func (r *UserRepo) Get(ctx context.Context, user domain.User) (*domain.User, error) {
 	const q = `
 	SELECT id, chat_id, name

@@ -4,19 +4,28 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/m4xvel/monetych_bot/internal/crypto"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
 type OrderRepo struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	crypto *crypto.Service
 }
 
-func NewOrderRepo(pool *pgxpool.Pool) *OrderRepo {
-	return &OrderRepo{pool: pool}
+func NewOrderRepo(
+	pool *pgxpool.Pool,
+	crypto *crypto.Service,
+) *OrderRepo {
+	return &OrderRepo{
+		pool:   pool,
+		crypto: crypto,
+	}
 }
 
 func (r *OrderRepo) Create(ctx context.Context, order domain.Order) (int, error) {
@@ -161,11 +170,12 @@ func (r *OrderRepo) Get(ctx context.Context, orderID int) (*domain.Order, error)
 	return &o, nil
 }
 
-func (r *OrderRepo) FindByToken(
+func (r *OrderRepo) FindByField(
 	ctx context.Context,
-	token string,
+	where string,
+	arg any,
 ) (*domain.OrderFull, error) {
-	const q = `
+	q := fmt.Sprintf(`
 			SELECT
 				o.id, 
 				o.order_token,
@@ -193,8 +203,8 @@ func (r *OrderRepo) FindByToken(
 			LEFT JOIN experts e ON e.id = o.expert_id
 			LEFT JOIN games g ON g.id = o.game_id
 			LEFT JOIN game_types gt ON gt.id = o.game_type_id
-			WHERE o.order_token = $1
-		`
+			WHERE %s
+	`, where)
 
 	of := domain.OrderFull{
 		User:      &domain.User{},
@@ -203,7 +213,7 @@ func (r *OrderRepo) FindByToken(
 		GameType:  &domain.GameType{},
 		UserState: &domain.UserState{},
 	}
-	err := r.pool.QueryRow(ctx, q, token).Scan(
+	err := r.pool.QueryRow(ctx, q, arg).Scan(
 		&of.Order.ID,
 		&of.Order.Token,
 		&of.Order.Status,
@@ -261,8 +271,8 @@ func (r *OrderRepo) FindByToken(
 		SELECT
 			sender_role,
 			message_type,
-			text,
-			media,
+			text_enc,
+    	media_enc,
 			created_at
 		FROM order_chat_messages
 		WHERE order_id = $1
@@ -281,15 +291,16 @@ func (r *OrderRepo) FindByToken(
 
 	for rows.Next() {
 		var (
-			msg   domain.ChatMessage
-			media []byte
+			msg      domain.ChatMessage
+			textEnc  []byte
+			mediaEnc []byte
 		)
 
 		if err := rows.Scan(
 			&msg.SenderRole,
 			&msg.MessageType,
-			&msg.Text,
-			&media,
+			&textEnc,
+			&mediaEnc,
 			&msg.CreatedAt,
 		); err != nil {
 			logger.Log.Warnw("order repo: failed to scan message",
@@ -299,8 +310,22 @@ func (r *OrderRepo) FindByToken(
 			continue
 		}
 
-		if media != nil {
-			_ = json.Unmarshal(media, &msg.Media)
+		if len(textEnc) > 0 {
+			raw, err := r.crypto.Decrypt(textEnc)
+			if err == nil {
+				s := string(raw)
+				msg.Text = &s
+			}
+		}
+
+		if len(mediaEnc) > 0 {
+			raw, err := r.crypto.Decrypt(mediaEnc)
+			if err == nil {
+				var m map[string]any
+				if json.Unmarshal(raw, &m) == nil {
+					msg.Media = m
+				}
+			}
 		}
 
 		of.Messages = append(of.Messages, msg)
@@ -309,150 +334,10 @@ func (r *OrderRepo) FindByToken(
 	return &of, nil
 }
 
-func (r *OrderRepo) FindByID(
-	ctx context.Context,
-	orderID int,
-) (*domain.OrderFull, error) {
-	const q = `
-			SELECT
-				o.id, 
-				o.order_token,
-				o.status, 
-				o.thread_id, 
-				o.created_at, 
-				o.updated_at,
-				o.user_name_at_purchase, 
-				o.game_name_at_purchase, 
-				o.game_type_name_at_purchase,
-				u.id, 
-				u.chat_id, 
-				u.name, 
-				u.is_verified, 
-				u.created_at, 
-				u.total_orders,
-				e.id, 
-				e.chat_id, 
-				e.topic_id, 
-				e.is_active,
-				g.id, g.name,
-				gt.id, gt.name
-			FROM orders o
-			LEFT JOIN users u ON u.id = o.user_id
-			LEFT JOIN experts e ON e.id = o.expert_id
-			LEFT JOIN games g ON g.id = o.game_id
-			LEFT JOIN game_types gt ON gt.id = o.game_type_id
-			WHERE o.id = $1
-		`
+func (r *OrderRepo) FindByToken(ctx context.Context, token string) (*domain.OrderFull, error) {
+	return r.FindByField(ctx, "o.order_token = $1", token)
+}
 
-	of := domain.OrderFull{
-		User:      &domain.User{},
-		Expert:    &domain.Expert{},
-		Game:      &domain.Game{},
-		GameType:  &domain.GameType{},
-		UserState: &domain.UserState{},
-	}
-	err := r.pool.QueryRow(ctx, q, orderID).Scan(
-		&of.Order.ID,
-		&of.Order.Token,
-		&of.Order.Status,
-		&of.Order.ThreadID,
-		&of.Order.CreatedAt,
-		&of.Order.UpdatedAt,
-		&of.Order.UserNameAtPurchase,
-		&of.Order.GameNameAtPurchase,
-		&of.Order.GameTypeNameAtPurchase,
-		&of.User.ID,
-		&of.User.ChatID,
-		&of.User.Name,
-		&of.User.IsVerified,
-		&of.User.CreatedAt,
-		&of.User.TotalOrders,
-		&of.Expert.ID,
-		&of.Expert.ChatID,
-		&of.Expert.TopicID,
-		&of.Expert.IsActive,
-		&of.Game.ID,
-		&of.Game.Name,
-		&of.GameType.ID,
-		&of.GameType.Name,
-	)
-
-	if err != nil && err != sql.ErrNoRows {
-		logger.Log.Errorw("order repo: find by token failed",
-			"err", err,
-		)
-		return nil, err
-	}
-
-	const userStateQ = `
-		SELECT 
-			state, 
-			order_id, 
-			updated_at
-		FROM user_state
-		WHERE user_id = $1
-	`
-
-	err = r.pool.QueryRow(ctx, userStateQ, of.User.ID).Scan(
-		&of.UserState.State,
-		&of.UserState.OrderID,
-		&of.UserState.UpdatedAt,
-	)
-
-	if err != nil && err != sql.ErrNoRows {
-		logger.Log.Warnw("order repo: user state not found",
-			"user_id", of.User.ID,
-		)
-	}
-
-	const messagesQ = `
-		SELECT
-			sender_role,
-			message_type,
-			text,
-			media,
-			created_at
-		FROM order_chat_messages
-		WHERE order_id = $1
-		ORDER BY created_at ASC
-	`
-
-	rows, err := r.pool.Query(ctx, messagesQ, of.Order.ID)
-	if err != nil {
-		logger.Log.Errorw("order repo: failed to load messages",
-			"order_id", of.Order.ID,
-			"err", err,
-		)
-		return &of, nil
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var (
-			msg   domain.ChatMessage
-			media []byte
-		)
-
-		if err := rows.Scan(
-			&msg.SenderRole,
-			&msg.MessageType,
-			&msg.Text,
-			&media,
-			&msg.CreatedAt,
-		); err != nil {
-			logger.Log.Warnw("order repo: failed to scan message",
-				"order_id", of.Order.ID,
-				"err", err,
-			)
-			continue
-		}
-
-		if media != nil {
-			_ = json.Unmarshal(media, &msg.Media)
-		}
-
-		of.Messages = append(of.Messages, msg)
-	}
-
-	return &of, nil
+func (r *OrderRepo) FindByID(ctx context.Context, id int) (*domain.OrderFull, error) {
+	return r.FindByField(ctx, "o.id = $1", id)
 }

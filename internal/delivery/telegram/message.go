@@ -55,15 +55,6 @@ func (h *Handler) handleUserMessage(
 			"order_id", state.OrderID,
 		)
 
-		raw, err := structToMap(msg)
-		if err != nil {
-			logger.Log.Errorw("failed to struct to map",
-				"chat_id", chatID,
-				"err", err,
-			)
-			return
-		}
-
 		text := extractText(msg)
 
 		media, msgType := extractMedia(msg)
@@ -77,7 +68,6 @@ func (h *Handler) handleUserMessage(
 			msgType,
 			text,
 			media,
-			raw,
 		); err != nil {
 			logger.Log.Errorw("failed to save user message",
 				"err", err,
@@ -191,15 +181,6 @@ func (h *Handler) handleExpertMessage(
 		return
 	}
 
-	raw, err := structToMap(msg)
-	if err != nil {
-		logger.Log.Errorw("failed to struct to map",
-			"chat_id", msg.Chat.ID,
-			"err", err,
-		)
-		return
-	}
-
 	text := extractText(msg)
 
 	media, msgType := extractMedia(msg)
@@ -213,7 +194,6 @@ func (h *Handler) handleExpertMessage(
 		msgType,
 		text,
 		media,
-		raw,
 	); err != nil {
 		logger.Log.Errorw("failed to save expert message",
 			"err", err,

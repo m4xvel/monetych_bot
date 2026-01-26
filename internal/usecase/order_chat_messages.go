@@ -27,7 +27,6 @@ func (s *OrderChatMessageService) SaveUserMessage(
 	msgType domain.MessageType,
 	text *string,
 	media map[string]any,
-	raw map[string]any,
 ) error {
 	msg := &domain.OrderChatMessages{
 		OrderID:      orderID,
@@ -38,7 +37,6 @@ func (s *OrderChatMessageService) SaveUserMessage(
 		MessageType:  msgType,
 		Text:         text,
 		Media:        media,
-		RawPayload:   raw,
 	}
 
 	return s.repo.Save(ctx, msg)
@@ -53,7 +51,6 @@ func (s *OrderChatMessageService) SaveExpertMessage(
 	msgType domain.MessageType,
 	text *string,
 	media map[string]any,
-	raw map[string]any,
 ) error {
 	msg := &domain.OrderChatMessages{
 		OrderID:        orderID,
@@ -64,7 +61,6 @@ func (s *OrderChatMessageService) SaveExpertMessage(
 		MessageType:    msgType,
 		Text:           text,
 		Media:          media,
-		RawPayload:     raw,
 	}
 
 	return s.repo.Save(ctx, msg)
