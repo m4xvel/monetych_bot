@@ -27,7 +27,7 @@ func (h *Handler) handleStartCommand(
 	}
 
 	for _, e := range experts {
-		if chatID == e.ChatID {
+		if chatID == e.TopicID {
 			logger.Log.Infow("start command ignored for expert",
 				"chat_id", chatID,
 			)

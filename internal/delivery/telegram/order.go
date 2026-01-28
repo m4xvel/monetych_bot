@@ -196,7 +196,7 @@ func (h *Handler) notifyExpertsAboutOrder(
 		)
 
 		message := tgbotapi.NewMessage(
-			e.ChatID,
+			e.TopicID,
 			h.textDynamic.NewOrder(orderID, gameName, gameTypeName),
 		)
 

@@ -33,7 +33,6 @@ func (s *ExpertService) InitCache(ctx context.Context) error {
 		if _, ok := s.experts[r.ID]; !ok {
 			s.experts[int(r.ID)] = domain.Expert{
 				ID:      r.ID,
-				ChatID:  r.ChatID,
 				TopicID: r.TopicID,
 			}
 		}

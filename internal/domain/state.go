@@ -17,7 +17,7 @@ const (
 type UserState struct {
 	State     StateName
 	OrderID   *int
-	UpdatedAt *time.Time
+	UpdatedAt time.Time
 
 	ExpertID      *int
 	ExpertTopicID *int64

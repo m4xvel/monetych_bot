@@ -160,7 +160,7 @@ func FormatOrderFull(of *domain.OrderFull) string {
 	// --- EXPERT ---
 	if of.Expert != nil && of.Expert.ID != 0 {
 		b.WriteString("🧑‍💼 <b>Эксперт</b>\n")
-		b.WriteString(fmt.Sprintf("Chat ID: <code>%d</code>\n", of.Expert.ChatID))
+		b.WriteString(fmt.Sprintf("Chat ID: <code>%d</code>\n", of.Expert.TopicID))
 		if of.Expert.IsActive {
 			b.WriteString("Активен: ✅\n")
 		} else {
