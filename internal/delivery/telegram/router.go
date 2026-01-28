@@ -3,8 +3,8 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
-	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/logger"
@@ -19,21 +19,16 @@ type Router struct {
 	messageHandler   HandlerFunc
 
 	mu    sync.Mutex
-	locks map[string]time.Time
+	locks map[string]struct{}
 }
 
 func NewRouter() *Router {
-	r := &Router{
+	return &Router{
 		commandHandlers:  make(map[string]HandlerFunc),
 		callbackHandlers: make(map[string]CallbackHandlerFunc),
-		locks:            make(map[string]time.Time),
+		locks:            make(map[string]struct{}),
 	}
-
-	go r.cleanup()
-	return r
 }
-
-const lockTTL = 15 * time.Second
 
 func (r *Router) RegisterCommand(cmd string, handler HandlerFunc) {
 	r.commandHandlers[cmd] = handler
@@ -71,6 +66,7 @@ func (r *Router) Route(ctx context.Context, upd tgbotapi.Update) {
 				"user_id", msg.From.ID,
 				"command", cmd,
 			)
+
 			return
 		}
 
@@ -86,30 +82,29 @@ func (r *Router) Route(ctx context.Context, upd tgbotapi.Update) {
 
 	case upd.CallbackQuery != nil:
 		cb := upd.CallbackQuery
-		action := extractPrefix(cb.Data)
-		lockKey := buildLockKey(cb, action)
+		lockKey := buildLockKey(cb)
 
 		logger.Log.Infow("callback received",
 			"user_id", cb.From.ID,
 			"username", cb.From.UserName,
-			"action", action,
 		)
 
 		r.mu.Lock()
-		if t, ok := r.locks[lockKey]; ok && time.Since(t) < lockTTL {
+		if _, exists := r.locks[lockKey]; exists {
 			r.mu.Unlock()
 
-			logger.Log.Warnw("callback ignored due to lock",
+			logger.Log.Warnw("callback ignored (already handled)",
 				"user_id", cb.From.ID,
-				"action", action,
+				"data", cb.Data,
 			)
+
 			return
 		}
-		r.locks[lockKey] = time.Now()
+		r.locks[lockKey] = struct{}{}
 		r.mu.Unlock()
 
 		for prefix, h := range r.callbackHandlers {
-			if len(cb.Data) >= len(prefix) && cb.Data[:len(prefix)] == prefix {
+			if strings.HasPrefix(cb.Data, prefix) {
 				h(ctx, cb)
 				return
 			}
@@ -125,36 +120,12 @@ func (r *Router) Route(ctx context.Context, upd tgbotapi.Update) {
 	}
 }
 
-func (r *Router) cleanup() {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		now := time.Now()
-		r.mu.Lock()
-		for k, t := range r.locks {
-			if now.Sub(t) > lockTTL {
-				delete(r.locks, k)
-			}
-		}
-		r.mu.Unlock()
-	}
-}
-
-func buildLockKey(cb *tgbotapi.CallbackQuery, action string) string {
+func buildLockKey(cb *tgbotapi.CallbackQuery) string {
 	return fmt.Sprintf(
-		"%d:%d:%s",
+		"%d:%d:%d:%s",
+		cb.From.ID,
 		cb.Message.Chat.ID,
 		cb.Message.MessageID,
-		action,
+		cb.Data,
 	)
-}
-
-func extractPrefix(data string) string {
-	for i := 0; i < len(data); i++ {
-		if data[i] == ':' {
-			return data[:i]
-		}
-	}
-	return data
 }
