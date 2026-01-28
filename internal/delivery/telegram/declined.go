@@ -2,8 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -22,36 +20,33 @@ func (h *Handler) handleDeclinedSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 4 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid declined callback data",
 			"data", cb.Data,
 		)
 		return
 	}
 
-	orderID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse order id for decline",
-			"value", parts[1],
-		)
-		return
-	}
+	tokenCallback := parts[1]
 
-	topicID, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil {
-		logger.Log.Warnw("failed to parse topic id for decline",
-			"value", parts[2],
-		)
-		return
-	}
+	var payload ConfirmedAndDeclinedOrderSelectPayload
 
-	threadID, err := strconv.ParseInt(parts[3], 10, 64)
-	if err != nil {
-		logger.Log.Warnw("failed to parse thread id for decline",
-			"value", parts[3],
-		)
-		return
-	}
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"declined",
+		&payload,
+	)
+
+	orderID := payload.OrderID
+	topicID := payload.TopicID
+	threadID := payload.ThreadID
+
+	h.callbackTokenService.DeleteByActionAndOrderID(
+		ctx,
+		"confirmed",
+		orderID,
+	)
 
 	logger.Log.Infow("decline confirmation requested",
 		"order_id", orderID,
@@ -59,14 +54,46 @@ func (h *Handler) handleDeclinedSelect(
 		"thread_id", threadID,
 	)
 
+	tokenReaffirm, err := h.callbackTokenService.Create(
+		ctx,
+		"declined_reaffirm",
+		&ConfirmedAndDeclinedOrderSelectPayload{
+			OrderID:  orderID,
+			TopicID:  topicID,
+			ThreadID: threadID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw(
+			"failed to create declined reaffirm order callback token",
+			"err", err,
+		)
+	}
+
 	btn := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.AcceptText,
-		fmt.Sprintf("declined_reaffirm:%d:%d:%d", orderID, topicID, threadID),
+		"declined_reaffirm:"+tokenReaffirm,
 	)
+
+	tokenBack, err := h.callbackTokenService.Create(
+		ctx,
+		"back",
+		&ConfirmedAndDeclinedOrderSelectPayload{
+			OrderID:  orderID,
+			TopicID:  topicID,
+			ThreadID: threadID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw(
+			"failed to create back order callback token",
+			"err", err,
+		)
+	}
 
 	btnBack := tgbotapi.NewInlineKeyboardButtonData(
 		"⬅️ Вернуться назад",
-		fmt.Sprintf("back:%d:%d:%d", orderID, topicID, threadID),
+		"back:"+tokenBack,
 	)
 
 	markup := tgbotapi.NewInlineKeyboardMarkup(

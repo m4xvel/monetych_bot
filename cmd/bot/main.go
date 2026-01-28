@@ -76,6 +76,7 @@ func main() {
 	orderMessageRepo := postgres.NewOrderMessageRepo(pool)
 	orderChatMessageRepo := postgres.NewOrderChatMessagesRepo(pool, keyBase64)
 	reviewRepo := postgres.NewReviewRepo(pool)
+	callbackTokenRepo := postgres.NewCallbackTokenRepo(pool)
 
 	userService := usecase.NewUserService(userRepo)
 	stateService := usecase.NewStateService(stateRepo)
@@ -87,6 +88,7 @@ func main() {
 	orderChatMessageService := usecase.
 		NewOrderChatMessageService(orderChatMessageRepo)
 	reviewService := usecase.NewReviewService(reviewRepo)
+	callbackTokenService := usecase.NewCallbackTokenService(callbackTokenRepo)
 
 	if err := gameService.InitCache(ctx); err != nil {
 		logger.Log.Fatalw("failed to init game cache", "err", err)
@@ -113,6 +115,7 @@ func main() {
 		reviewService,
 		orderMessageService,
 		orderChatMessageService,
+		callbackTokenService,
 	)
 
 	u := tgbotapi.NewUpdate(0)

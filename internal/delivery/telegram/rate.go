@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -23,7 +22,7 @@ func (h *Handler) handleRateSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 3 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid rate callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -31,28 +30,30 @@ func (h *Handler) handleRateSelect(
 		return
 	}
 
-	rate, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse rate value",
-			"chat_id", chatID,
-			"value", parts[1],
-		)
-		return
-	}
+	tokenCallback := parts[1]
+
+	var payload RateSelectPayload
+
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"rate",
+		&payload,
+	)
+
+	rate := payload.Rate
+	orderID := payload.OrderID
+
+	h.callbackTokenService.DeleteByActionAndOrderID(
+		ctx,
+		"rate",
+		orderID,
+	)
 
 	if rate < 1 || rate > 5 {
 		logger.Log.Warnw("rate value out of allowed range",
 			"chat_id", chatID,
 			"rate", rate,
-		)
-		return
-	}
-
-	orderID, err := strconv.Atoi(parts[2])
-	if err != nil {
-		logger.Log.Warnw("failed to parse order_id from rate callback",
-			"chat_id", chatID,
-			"value", parts[2],
 		)
 		return
 	}

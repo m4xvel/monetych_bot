@@ -2,8 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -24,7 +22,7 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 4 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid confirmed reaffirm callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -32,32 +30,26 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 		return
 	}
 
-	orderID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse order_id from confirmed reaffirm callback",
-			"chat_id", chatID,
-			"value", parts[1],
-		)
-		return
-	}
+	tokenCallback := parts[1]
 
-	topicID, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil {
-		logger.Log.Warnw("failed to parse topic_id from confirmed reaffirm callback",
-			"chat_id", chatID,
-			"value", parts[2],
-		)
-		return
-	}
+	var payload ConfirmedAndDeclinedOrderSelectPayload
 
-	threadID, err := strconv.ParseInt(parts[3], 10, 64)
-	if err != nil {
-		logger.Log.Warnw("failed to parse thread_id from confirmed reaffirm callback",
-			"chat_id", chatID,
-			"value", parts[3],
-		)
-		return
-	}
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"confirmed_reaffirm",
+		&payload,
+	)
+
+	orderID := payload.OrderID
+	topicID := payload.TopicID
+	threadID := payload.ThreadID
+
+	h.callbackTokenService.DeleteByActionAndOrderID(
+		ctx,
+		"back",
+		orderID,
+	)
 
 	order, err := h.orderService.GetOrderByID(ctx, orderID)
 	if err != nil {
@@ -103,10 +95,25 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 		)
 	}
 
+	token, err := h.callbackTokenService.Create(
+		ctx,
+		"accept_client",
+		&CancelOrderSelectPayload{
+			ChatID:  chatID,
+			OrderID: orderID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw(
+			"failed to create accept client order callback token",
+			"err", err,
+		)
+	}
+
 	clientMsg := tgbotapi.NewMessage(order.UserChatID, h.text.ConfirmYourOrder)
 	btn := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.AcceptText,
-		fmt.Sprintf("accept_client:%d", orderID),
+		"accept_client:"+token,
 	)
 	clientMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(btn),

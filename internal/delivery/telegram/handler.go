@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -14,8 +13,54 @@ import (
 )
 
 type SentOrder struct {
-	ChatID    int64
-	MessageID int
+	ChatID    int64 `json:"chat_id"`
+	MessageID int   `json:"message_id"`
+}
+
+type GameSelectPayload struct {
+	ChatID int64 `json:"chat_id"`
+	GameID int   `json:"game_id"`
+}
+
+type TypeSelectPayload struct {
+	ChatID int64 `json:"chat_id"`
+	GameID int   `json:"game_id"`
+	TypeID int   `json:"type_id"`
+}
+
+type OrderSelectPayload struct {
+	ChatID int64 `json:"chat_id"`
+	GameID int   `json:"game_id"`
+	TypeID int   `json:"type_id"`
+}
+
+type CancelOrderSelectPayload struct {
+	ChatID  int64 `json:"chat_id"`
+	OrderID int   `json:"order_id"`
+}
+
+type AcceptOrderSelectPayload struct {
+	ChatID        int64 `json:"chat_id"`
+	OrderID       int   `json:"order_id"`
+	UserMessageID int   `json:"user_message_id"`
+	ExpertID      int   `json:"expert_id"`
+}
+
+type ConfirmedAndDeclinedOrderSelectPayload struct {
+	OrderID  int   `json:"order_id"`
+	TopicID  int64 `json:"topic_id"`
+	ThreadID int64 `json:"thread_id"`
+}
+
+type RateSelectPayload struct {
+	ChatID  int64 `json:"chat_id"`
+	Rate    int   `json:"rate"`
+	OrderID int   `json:"order_id"`
+}
+
+type SearchPayload struct {
+	ChatID  int64 `json:"chat_id"`
+	OrderID int   `json:"order_id"`
 }
 
 type Handler struct {
@@ -29,6 +74,7 @@ type Handler struct {
 	orderMessageService     *usecase.OrderMessageService
 	orderChatMessageService *usecase.OrderChatMessageService
 	reviewService           *usecase.ReviewService
+	callbackTokenService    *usecase.CallbackTokenService
 	router                  *Router
 	feature                 *features.Features
 	text                    *utils.Messages
@@ -46,6 +92,7 @@ func NewHandler(
 	rs *usecase.ReviewService,
 	oms *usecase.OrderMessageService,
 	ocms *usecase.OrderChatMessageService,
+	cts *usecase.CallbackTokenService,
 ) *Handler {
 	h := &Handler{
 		bot:                     bot,
@@ -58,6 +105,7 @@ func NewHandler(
 		reviewService:           rs,
 		orderMessageService:     oms,
 		orderChatMessageService: ocms,
+		callbackTokenService:    cts,
 		router:                  NewRouter(),
 		feature:                 features.NewFeatures(),
 		text:                    utils.NewMessages(),
@@ -138,17 +186,48 @@ func (h *Handler) deleteOrderMessage(ctx context.Context, orderID int) {
 }
 
 func (h *Handler) renderControlPanel(
+	ctx context.Context,
 	topicID, threadID int64,
 	order *domain.Order) {
 
+	tokenConfirmed, err := h.callbackTokenService.Create(
+		ctx,
+		"confirmed",
+		&ConfirmedAndDeclinedOrderSelectPayload{
+			OrderID:  order.ID,
+			TopicID:  topicID,
+			ThreadID: threadID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw("failed to create confirmed order callback token",
+			"err", err,
+		)
+	}
+
 	btnAccept := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.AcceptText,
-		fmt.Sprintf("confirmed:%d:%d:%d", order.ID, topicID, threadID),
+		"confirmed:"+tokenConfirmed,
 	)
+
+	tokenDeclined, err := h.callbackTokenService.Create(
+		ctx,
+		"declined",
+		&ConfirmedAndDeclinedOrderSelectPayload{
+			OrderID:  order.ID,
+			TopicID:  topicID,
+			ThreadID: threadID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw("failed to create declined order callback token",
+			"err", err,
+		)
+	}
 
 	btnDecline := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.DeclineText,
-		fmt.Sprintf("declined:%d:%d:%d", order.ID, topicID, threadID),
+		"declined:"+tokenDeclined,
 	)
 
 	markup := tgbotapi.NewInlineKeyboardMarkup(
@@ -170,18 +249,49 @@ func (h *Handler) renderControlPanel(
 }
 
 func (h *Handler) renderEditControlPanel(
+	ctx context.Context,
 	messageID int,
 	topicID, threadID int64,
 	order *domain.Order) {
 
+	tokenConfirmed, err := h.callbackTokenService.Create(
+		ctx,
+		"confirmed",
+		&ConfirmedAndDeclinedOrderSelectPayload{
+			OrderID:  order.ID,
+			TopicID:  topicID,
+			ThreadID: threadID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw("failed to create confirmed order callback token",
+			"err", err,
+		)
+	}
+
 	btnAccept := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.AcceptText,
-		fmt.Sprintf("confirmed:%d:%d:%d", order.ID, topicID, threadID),
+		"confirmed:"+tokenConfirmed,
 	)
+
+	tokenDeclined, err := h.callbackTokenService.Create(
+		ctx,
+		"declined",
+		&ConfirmedAndDeclinedOrderSelectPayload{
+			OrderID:  order.ID,
+			TopicID:  topicID,
+			ThreadID: threadID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw("failed to create declined order callback token",
+			"err", err,
+		)
+	}
 
 	btnDecline := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.DeclineText,
-		fmt.Sprintf("declined:%d:%d:%d", order.ID, topicID, threadID),
+		"declined:"+tokenDeclined,
 	)
 
 	markup := tgbotapi.NewInlineKeyboardMarkup(

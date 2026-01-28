@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -24,7 +23,7 @@ func (h *Handler) handleAcceptSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 5 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid accept callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -32,37 +31,27 @@ func (h *Handler) handleAcceptSelect(
 		return
 	}
 
-	orderID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse order id",
-			"value", parts[1],
-		)
-		return
-	}
+	tokenCallback := parts[1]
 
-	messageUserID, err := strconv.Atoi(parts[2])
-	if err != nil {
-		logger.Log.Warnw("failed to parse message id",
-			"value", parts[2],
-		)
-		return
-	}
+	var payload AcceptOrderSelectPayload
 
-	chatUserID, err := strconv.ParseInt(parts[3], 10, 64)
-	if err != nil {
-		logger.Log.Warnw("failed to parse user chat id",
-			"value", parts[3],
-		)
-		return
-	}
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"accept",
+		&payload,
+	)
 
-	expertID, err := strconv.Atoi(parts[4])
-	if err != nil {
-		logger.Log.Warnw("failed to parse expert id",
-			"value", parts[4],
-		)
-		return
-	}
+	chatUserID := payload.ChatID
+	messageUserID := payload.UserMessageID
+	orderID := payload.OrderID
+	expertID := payload.ExpertID
+
+	h.callbackTokenService.DeleteByActionAndOrderID(
+		ctx,
+		"cancel",
+		orderID,
+	)
 
 	if err := h.orderService.SetAcceptedStatus(ctx, orderID); err != nil {
 		logger.Log.Warnw("failed to accept order",
@@ -131,7 +120,7 @@ func (h *Handler) handleAcceptSelect(
 		h.textDynamic.AssessorAcceptedOrder(orderID, order.GameNameAtPurchase, order.GameTypeNameAtPurchase),
 	))
 
-	h.renderControlPanel(expert.TopicID, threadID, order)
+	h.renderControlPanel(ctx, expert.TopicID, threadID, order)
 
 	h.bot.Send(tgbotapi.NewDeleteMessage(chatUserID, messageUserID))
 

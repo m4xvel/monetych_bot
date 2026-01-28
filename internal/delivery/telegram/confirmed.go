@@ -2,8 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -24,7 +22,7 @@ func (h *Handler) handleConfirmedSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 4 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid confirm callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -32,41 +30,67 @@ func (h *Handler) handleConfirmedSelect(
 		return
 	}
 
-	orderID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse order_id from confirm callback",
-			"chat_id", chatID,
-			"value", parts[1],
-		)
-		return
-	}
+	tokenCallback := parts[1]
 
-	topicID, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil {
-		logger.Log.Warnw("failed to parse topic_id from confirm callback",
-			"chat_id", chatID,
-			"value", parts[2],
-		)
-		return
-	}
+	var payload ConfirmedAndDeclinedOrderSelectPayload
 
-	threadID, err := strconv.ParseInt(parts[3], 10, 64)
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"confirmed",
+		&payload,
+	)
+
+	orderID := payload.OrderID
+	topicID := payload.TopicID
+	threadID := payload.ThreadID
+
+	h.callbackTokenService.DeleteByActionAndOrderID(
+		ctx,
+		"declined",
+		orderID,
+	)
+
+	tokenReaffirm, err := h.callbackTokenService.Create(
+		ctx,
+		"confirmed_reaffirm",
+		&ConfirmedAndDeclinedOrderSelectPayload{
+			OrderID:  orderID,
+			TopicID:  topicID,
+			ThreadID: threadID,
+		},
+	)
 	if err != nil {
-		logger.Log.Warnw("failed to parse thread_id from confirm callback",
-			"chat_id", chatID,
-			"value", parts[3],
+		logger.Log.Errorw(
+			"failed to create confirmed reaffirm order callback token",
+			"err", err,
 		)
-		return
 	}
 
 	btn := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.AcceptText,
-		fmt.Sprintf("confirmed_reaffirm:%d:%d:%d", orderID, topicID, threadID),
+		"confirmed_reaffirm:"+tokenReaffirm,
 	)
+
+	tokenBack, err := h.callbackTokenService.Create(
+		ctx,
+		"back",
+		&ConfirmedAndDeclinedOrderSelectPayload{
+			OrderID:  orderID,
+			TopicID:  topicID,
+			ThreadID: threadID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw(
+			"failed to create back order callback token",
+			"err", err,
+		)
+	}
 
 	btnBack := tgbotapi.NewInlineKeyboardButtonData(
 		"⬅️ Вернуться назад",
-		fmt.Sprintf("back:%d:%d:%d", orderID, topicID, threadID),
+		"back:"+tokenBack,
 	)
 
 	markup := tgbotapi.NewInlineKeyboardMarkup(
@@ -90,9 +114,4 @@ func (h *Handler) handleConfirmedSelect(
 		)
 		return
 	}
-
-	logger.Log.Infow("confirm order ui rendered",
-		"chat_id", chatID,
-		"order_id", orderID,
-	)
 }

@@ -2,8 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -23,7 +21,7 @@ func (h *Handler) handleOrderSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 3 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid order callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -31,23 +29,23 @@ func (h *Handler) handleOrderSelect(
 		return
 	}
 
-	gameID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse game id",
-			"chat_id", chatID,
-			"value", parts[1],
-		)
+	tokenCallback := parts[1]
+
+	var payload OrderSelectPayload
+
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"order",
+		&payload,
+	)
+
+	if payload.ChatID != cb.From.ID {
 		return
 	}
 
-	gameTypeID, err := strconv.Atoi(parts[2])
-	if err != nil {
-		logger.Log.Warnw("failed to parse game type id",
-			"chat_id", chatID,
-			"value", parts[2],
-		)
-		return
-	}
+	gameID := payload.GameID
+	gameTypeID := payload.TypeID
 
 	u, err := h.userService.GetByChatID(ctx, chatID)
 	if err != nil || u == nil {
@@ -126,9 +124,24 @@ func (h *Handler) handleOrderSelect(
 
 	h.bot.Send(delete)
 
+	token, err := h.callbackTokenService.Create(
+		ctx,
+		"cancel",
+		&CancelOrderSelectPayload{
+			ChatID:  chatID,
+			OrderID: id,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw("failed to create cancel order callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+	}
+
 	btn := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.DeclineText,
-		fmt.Sprintf("cancel:%d", id),
+		"cancel:"+token,
 	)
 
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
@@ -160,9 +173,26 @@ func (h *Handler) notifyExpertsAboutOrder(
 	}
 
 	for _, e := range experts {
+		token, err := h.callbackTokenService.Create(
+			ctx,
+			"accept",
+			&AcceptOrderSelectPayload{
+				ChatID:        chatID,
+				OrderID:       orderID,
+				UserMessageID: messageID,
+				ExpertID:      e.ID,
+			},
+		)
+		if err != nil {
+			logger.Log.Errorw("failed to create accept order callback token",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
+
 		btn := tgbotapi.NewInlineKeyboardButtonData(
 			"Принять",
-			fmt.Sprintf("accept:%d:%d:%d:%d", orderID, messageID, chatID, e.ID),
+			"accept:"+token,
 		)
 
 		message := tgbotapi.NewMessage(

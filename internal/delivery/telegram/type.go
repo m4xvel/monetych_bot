@@ -2,8 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -22,7 +20,7 @@ func (h *Handler) handleTypeSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 3 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid type callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -30,23 +28,23 @@ func (h *Handler) handleTypeSelect(
 		return
 	}
 
-	gameID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse game id",
-			"chat_id", chatID,
-			"value", parts[1],
-		)
+	tokenCallback := parts[1]
+
+	var payload TypeSelectPayload
+
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"type",
+		&payload,
+	)
+
+	if payload.ChatID != cb.From.ID {
 		return
 	}
 
-	gameTypeID, err := strconv.Atoi(parts[2])
-	if err != nil {
-		logger.Log.Warnw("failed to parse game type id",
-			"chat_id", chatID,
-			"value", parts[2],
-		)
-		return
-	}
+	gameID := payload.GameID
+	gameTypeID := payload.TypeID
 
 	t, err := h.gameService.GetTypeByID(gameTypeID)
 	if err != nil {
@@ -64,13 +62,31 @@ func (h *Handler) handleTypeSelect(
 	)
 	h.bot.Request(editText)
 
+	token, err := h.callbackTokenService.Create(
+		ctx,
+		"order",
+		&OrderSelectPayload{
+			ChatID: chatID,
+			GameID: gameID,
+			TypeID: gameTypeID,
+		},
+	)
+	if err != nil {
+		logger.Log.Errorw("failed to create games type callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+	}
+
 	message := tgbotapi.NewMessage(chatID, h.text.ContactAppraiserText)
 	btn := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.ContactText,
-		fmt.Sprintf("order:%d:%d", gameID, gameTypeID),
+		"order:"+token,
 	)
+
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(btn),
 	)
+
 	h.bot.Send(message)
 }

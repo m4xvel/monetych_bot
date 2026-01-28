@@ -75,9 +75,25 @@ func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
 	reply.ReplyToMessageID = msg.MessageID
 
 	if mediaCount > 0 {
+
+		token, err := h.callbackTokenService.Create(
+			ctx,
+			"show_media",
+			&SearchPayload{
+				ChatID:  chatID,
+				OrderID: result.Order.ID,
+			},
+		)
+		if err != nil {
+			logger.Log.Errorw("failed to create show media callback token",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
+
 		button := tgbotapi.NewInlineKeyboardButtonData(
 			fmt.Sprintf("📎 Показать медиа (%d)", mediaCount),
-			fmt.Sprintf("show_media:%d", result.Order.ID),
+			"show_media:"+token,
 		)
 
 		reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(

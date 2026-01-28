@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -24,7 +23,7 @@ func (h *Handler) handleAcceptClientSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 2 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid accept client callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -32,14 +31,18 @@ func (h *Handler) handleAcceptClientSelect(
 		return
 	}
 
-	orderID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse order_id from accept client callback",
-			"chat_id", chatID,
-			"value", parts[1],
-		)
-		return
-	}
+	tokenCallback := parts[1]
+
+	var payload CancelOrderSelectPayload
+
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"accept_client",
+		&payload,
+	)
+
+	orderID := payload.OrderID
 
 	if err := h.orderService.SetCompletedStatus(ctx, orderID, chatID); err != nil {
 		logger.Log.Errorw("failed to complete order by client",
@@ -91,15 +94,33 @@ func (h *Handler) handleAcceptClientSelect(
 		)
 	}
 
+	buttons := make([]tgbotapi.InlineKeyboardButton, 0, 5)
+
+	for i := 1; i <= 5; i++ {
+		token, err := h.callbackTokenService.Create(
+			ctx,
+			"rate",
+			&RateSelectPayload{
+				ChatID:  chatID,
+				Rate:    i,
+				OrderID: orderID,
+			},
+		)
+		if err != nil {
+			continue
+		}
+
+		buttons = append(buttons,
+			tgbotapi.NewInlineKeyboardButtonData(
+				fmt.Sprintf("⭐ %d", i),
+				"rate:"+token,
+			),
+		)
+	}
+
 	rateMsg := tgbotapi.NewMessage(chatID, h.text.ChatClosedText)
 	rateMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("⭐ 1", fmt.Sprintf("rate:%d:%d", 1, orderID)),
-			tgbotapi.NewInlineKeyboardButtonData("⭐ 2", fmt.Sprintf("rate:%d:%d", 2, orderID)),
-			tgbotapi.NewInlineKeyboardButtonData("⭐ 3", fmt.Sprintf("rate:%d:%d", 3, orderID)),
-			tgbotapi.NewInlineKeyboardButtonData("⭐ 4", fmt.Sprintf("rate:%d:%d", 4, orderID)),
-			tgbotapi.NewInlineKeyboardButtonData("⭐ 5", fmt.Sprintf("rate:%d:%d", 5, orderID)),
-		),
+		tgbotapi.NewInlineKeyboardRow(buttons...),
 	)
 
 	if _, err := h.bot.Send(rateMsg); err != nil {

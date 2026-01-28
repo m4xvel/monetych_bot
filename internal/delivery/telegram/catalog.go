@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/logger"
@@ -29,9 +28,26 @@ func (h *Handler) handlerCatalogCommand(
 
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, g := range games {
+
+		token, err := h.callbackTokenService.Create(
+			ctx,
+			"game",
+			&GameSelectPayload{
+				GameID: g.ID,
+				ChatID: chatID,
+			},
+		)
+		if err != nil {
+			logger.Log.Errorw("failed to create game callback token",
+				"chat_id", chatID,
+				"err", err,
+			)
+			continue
+		}
+
 		btn := tgbotapi.NewInlineKeyboardButtonData(
 			g.Name,
-			fmt.Sprintf("game:%d", g.ID),
+			"game:"+token,
 		)
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}
@@ -54,9 +70,4 @@ func (h *Handler) handlerCatalogCommand(
 		)
 		return
 	}
-
-	logger.Log.Infow("catalog ui rendered",
-		"chat_id", chatID,
-		"games_count", len(games),
-	)
 }

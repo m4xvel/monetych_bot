@@ -2,8 +2,6 @@ package telegram
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -22,7 +20,7 @@ func (h *Handler) handleGameSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 2 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid game callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -30,14 +28,22 @@ func (h *Handler) handleGameSelect(
 		return
 	}
 
-	gameID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse game id",
-			"chat_id", chatID,
-			"value", parts[1],
-		)
+	token := parts[1]
+
+	var payload GameSelectPayload
+
+	h.callbackTokenService.Consume(
+		ctx,
+		token,
+		"game",
+		&payload,
+	)
+
+	if payload.ChatID != cb.From.ID {
 		return
 	}
+
+	gameID := payload.GameID
 
 	game, err := h.gameService.GetGameByID(gameID)
 	if err != nil {
@@ -65,9 +71,26 @@ func (h *Handler) handleGameSelect(
 
 	var rows [][]tgbotapi.InlineKeyboardButton
 	for _, t := range types {
+		token, err := h.callbackTokenService.Create(
+			ctx,
+			"type",
+			&TypeSelectPayload{
+				ChatID: chatID,
+				GameID: game.ID,
+				TypeID: t.ID,
+			},
+		)
+		if err != nil {
+			logger.Log.Errorw("failed to create games type callback token",
+				"chat_id", chatID,
+				"err", err,
+			)
+			continue
+		}
+
 		btn := tgbotapi.NewInlineKeyboardButtonData(
 			t.Name,
-			fmt.Sprintf("type:%d:%d", game.ID, t.ID),
+			"type:"+token,
 		)
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}

@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -21,36 +20,33 @@ func (h *Handler) handleDeclinedReaffirmSelect(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 4 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid declined reaffirm callback data",
 			"data", cb.Data,
 		)
 		return
 	}
 
-	orderID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse order id for decline reaffirm",
-			"value", parts[1],
-		)
-		return
-	}
+	tokenCallback := parts[1]
 
-	topicID, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil {
-		logger.Log.Warnw("failed to parse topic id for decline reaffirm",
-			"value", parts[2],
-		)
-		return
-	}
+	var payload ConfirmedAndDeclinedOrderSelectPayload
 
-	threadID, err := strconv.ParseInt(parts[3], 10, 64)
-	if err != nil {
-		logger.Log.Warnw("failed to parse thread id for decline reaffirm",
-			"value", parts[3],
-		)
-		return
-	}
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"declined_reaffirm",
+		&payload,
+	)
+
+	orderID := payload.OrderID
+	topicID := payload.TopicID
+	threadID := payload.ThreadID
+
+	h.callbackTokenService.DeleteByActionAndOrderID(
+		ctx,
+		"back",
+		orderID,
+	)
 
 	order, err := h.orderService.GetOrderByID(ctx, orderID)
 	if err != nil || order == nil {

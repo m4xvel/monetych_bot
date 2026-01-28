@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -32,7 +31,7 @@ func (h *Handler) handleShowMedia(
 	)
 
 	parts := strings.Split(cb.Data, ":")
-	if len(parts) < 2 {
+	if len(parts) != 2 {
 		logger.Log.Warnw("invalid type callback data",
 			"chat_id", chatID,
 			"data", cb.Data,
@@ -40,14 +39,22 @@ func (h *Handler) handleShowMedia(
 		return
 	}
 
-	orderID, err := strconv.Atoi(parts[1])
-	if err != nil {
-		logger.Log.Warnw("failed to parse order id",
-			"chat_id", chatID,
-			"value", parts[1],
-		)
+	tokenCallback := parts[1]
+
+	var payload SearchPayload
+
+	h.callbackTokenService.Consume(
+		ctx,
+		tokenCallback,
+		"show_media",
+		&payload,
+	)
+
+	if payload.ChatID != cb.From.ID {
 		return
 	}
+
+	orderID := payload.OrderID
 
 	of, err := h.orderService.FindByID(context.Background(), orderID)
 	if err != nil {
