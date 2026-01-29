@@ -141,6 +141,14 @@ func (s *StateService) GetStateByChatID(
 		)
 		return nil, err
 	}
+
+	if state == nil {
+		return &domain.UserState{
+			State:      domain.StateIdle,
+			UserChatID: &chatID,
+		}, nil
+	}
+
 	return state, nil
 }
 

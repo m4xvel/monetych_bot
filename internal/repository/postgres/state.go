@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
@@ -76,7 +78,9 @@ func (r *UserStateRepo) GetByChatID(
 
 	var us domain.UserState
 
-	err := r.pool.QueryRow(ctx, q, chatID).Scan(
+	row := r.pool.QueryRow(ctx, q, chatID)
+
+	err := row.Scan(
 		&us.State,
 		&us.OrderID,
 		&us.ExpertTopicID,
@@ -85,7 +89,11 @@ func (r *UserStateRepo) GetByChatID(
 		&us.UserID,
 		&us.UserChatID,
 	)
+
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		logger.Log.Errorw("failed to get user state by chat id",
 			"err", err,
 		)

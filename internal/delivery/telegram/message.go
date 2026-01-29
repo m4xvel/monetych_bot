@@ -2,7 +2,6 @@ package telegram
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -279,17 +278,6 @@ func extractMedia(
 	}
 
 	return nil, domain.MessageOther
-}
-
-func structToMap(v any) (map[string]any, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-
-	var m map[string]any
-	err = json.Unmarshal(b, &m)
-	return m, err
 }
 
 func int64PtrToStr(v *int64) string {

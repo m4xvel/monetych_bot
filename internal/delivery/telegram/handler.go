@@ -145,6 +145,10 @@ func (h *Handler) registerRoutes() {
 }
 
 func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
+	if !h.expertGuard(upd) {
+		logger.Log.Warnw("update blocked by expert guard")
+		return
+	}
 	if !h.supportGuard(upd) {
 		logger.Log.Warnw("update blocked by support guard")
 		return
@@ -306,6 +310,56 @@ func (h *Handler) renderEditControlPanel(
 	editMessage.ReplyMarkup = &markup
 
 	h.bot.Send(editMessage)
+}
+
+func (h *Handler) expertGuard(
+	upd tgbotapi.Update,
+) bool {
+
+	chatID, ok := extractChatID(upd)
+	if !ok {
+		return true
+	}
+
+	experts, err := h.expertService.GetAllExperts()
+	if err != nil {
+		return true
+	}
+
+	isExpert := false
+	for _, e := range experts {
+		if chatID == e.TopicID {
+			isExpert = true
+			break
+		}
+	}
+
+	if !isExpert {
+		return true
+	}
+
+	if upd.CallbackQuery != nil {
+		return true
+	}
+
+	if upd.Message != nil && !upd.Message.IsCommand() {
+		return true
+	}
+
+	logger.Log.Infow("expert interaction detected",
+		"chat_id", chatID,
+	)
+
+	if upd.Message != nil && upd.Message.IsCommand() &&
+		upd.Message.Command() == "start" {
+		return true
+	}
+
+	logger.Log.Warnw("expert action blocked",
+		"chat_id", chatID,
+	)
+
+	return false
 }
 
 func (h *Handler) supportGuard(
