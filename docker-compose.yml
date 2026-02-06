@@ -4,7 +4,7 @@ services:
     restart: "no"
     command: chown -R 65532:65532 /app/avatars
     volumes:
-      - avatars_data:/app/avatars
+      - ../shared/avatars:/app/avatars
     networks:
       - backend
         
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     command: ["/app/bot"]
     volumes:
-      - avatars_data:/app/avatars
+      - ../shared/avatars:/app/avatars
     networks:
       - backend
     logging:

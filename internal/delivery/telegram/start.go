@@ -81,38 +81,42 @@ func (h *Handler) handleStartCommand(
 		},
 	})
 
-	if err := h.userService.AddUser(
-		ctx,
-		chatID,
-		msg.Chat.FirstName,
-		func() string {
-			return h.feature.GetUserAvatar(h.bot, chatID)
-		},
-	); err != nil {
-		logger.Log.Errorw("failed to add user on start",
-			"chat_id", chatID,
-			"err", err,
+	accepted, _ := h.userPolicyAcceptancesService.IsAccepted(ctx, chatID)
+
+	message := tgbotapi.NewMessage(chatID, h.textDynamic.HelloText())
+	message.ParseMode = "Markdown"
+	message.DisableWebPagePreview = true
+	if !accepted {
+		token, err := h.callbackTokenService.Create(
+			ctx,
+			"accept_privacy",
+			&AcceptPrivacySelectPayload{
+				ChatID: chatID,
+			},
 		)
-		return
+		if err != nil {
+			logger.Log.Errorw("failed to create accept privacy callback token",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
+
+		message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(
+				"Соглашаюсь",
+				"accept_privacy:"+token,
+			)),
+		)
 	}
 
-	logger.Log.Infow("user initialized on start",
-		"chat_id", chatID,
-	)
-
-	if _, err := h.bot.Send(
-		tgbotapi.NewMessage(chatID, h.text.HelloText),
-	); err != nil {
+	if _, err := h.bot.Send(message); err != nil {
 		logger.Log.Errorw("failed to send hello message",
 			"chat_id", chatID,
 			"err", err,
 		)
 	}
 
-	if err := h.stateService.SetStateStart(ctx, chatID); err != nil {
-		logger.Log.Errorw("failed to set start state",
-			"chat_id", chatID,
-			"err", err,
-		)
+	if accepted {
+		h.handlerCatalogCommand(ctx, msg)
 	}
 }

@@ -12,6 +12,10 @@ import (
 	"github.com/m4xvel/monetych_bot/pkg/utils"
 )
 
+type AcceptPrivacySelectPayload struct {
+	ChatID int64 `json:"chat_id"`
+}
+
 type SentOrder struct {
 	ChatID    int64 `json:"chat_id"`
 	MessageID int   `json:"message_id"`
@@ -64,21 +68,22 @@ type SearchPayload struct {
 }
 
 type Handler struct {
-	bot                     *tgbotapi.BotAPI
-	userService             *usecase.UserService
-	stateService            *usecase.StateService
-	gameService             *usecase.GameService
-	orderService            *usecase.OrderService
-	expertService           *usecase.ExpertService
-	supportService          *usecase.SupportService
-	orderMessageService     *usecase.OrderMessageService
-	orderChatMessageService *usecase.OrderChatMessageService
-	reviewService           *usecase.ReviewService
-	callbackTokenService    *usecase.CallbackTokenService
-	router                  *Router
-	feature                 *features.Features
-	text                    *utils.Messages
-	textDynamic             *utils.Dynamic
+	bot                          *tgbotapi.BotAPI
+	userService                  *usecase.UserService
+	stateService                 *usecase.StateService
+	gameService                  *usecase.GameService
+	orderService                 *usecase.OrderService
+	expertService                *usecase.ExpertService
+	supportService               *usecase.SupportService
+	orderMessageService          *usecase.OrderMessageService
+	orderChatMessageService      *usecase.OrderChatMessageService
+	reviewService                *usecase.ReviewService
+	callbackTokenService         *usecase.CallbackTokenService
+	userPolicyAcceptancesService *usecase.UserPolicyAcceptancesService
+	router                       *Router
+	feature                      *features.Features
+	text                         *utils.Messages
+	textDynamic                  *utils.Dynamic
 }
 
 func NewHandler(
@@ -93,23 +98,25 @@ func NewHandler(
 	oms *usecase.OrderMessageService,
 	ocms *usecase.OrderChatMessageService,
 	cts *usecase.CallbackTokenService,
+	upa *usecase.UserPolicyAcceptancesService,
 ) *Handler {
 	h := &Handler{
-		bot:                     bot,
-		userService:             us,
-		stateService:            ss,
-		gameService:             gs,
-		orderService:            os,
-		expertService:           es,
-		supportService:          sups,
-		reviewService:           rs,
-		orderMessageService:     oms,
-		orderChatMessageService: ocms,
-		callbackTokenService:    cts,
-		router:                  NewRouter(),
-		feature:                 features.NewFeatures(),
-		text:                    utils.NewMessages(),
-		textDynamic:             utils.NewDynamic(),
+		bot:                          bot,
+		userService:                  us,
+		stateService:                 ss,
+		gameService:                  gs,
+		orderService:                 os,
+		expertService:                es,
+		supportService:               sups,
+		reviewService:                rs,
+		orderMessageService:          oms,
+		orderChatMessageService:      ocms,
+		callbackTokenService:         cts,
+		userPolicyAcceptancesService: upa,
+		router:                       NewRouter(),
+		feature:                      features.NewFeatures(),
+		text:                         utils.NewMessages(),
+		textDynamic:                  utils.NewDynamic(),
 	}
 
 	h.registerRoutes()
@@ -122,6 +129,7 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCommand("support", h.handlerSupportCommand)
 	h.router.RegisterCommand("search", h.supportOnly(h.SearchCommand))
 
+	h.router.RegisterCallback("accept_privacy", h.handleAcceptPrivacySelect)
 	h.router.RegisterCallback("game:", h.handleGameSelect)
 	h.router.RegisterCallback("type:", h.handleTypeSelect)
 	h.router.RegisterCallback("order:", h.handleOrderSelect)

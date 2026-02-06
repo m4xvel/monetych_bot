@@ -18,7 +18,7 @@ func (h *Handler) handlerSupportCommand(
 
 	message := tgbotapi.NewMessage(
 		chatID,
-		fmt.Sprintf("Служба технической поддержи: %s", support.ChatLink),
+		fmt.Sprintf("Служба поддержи: %s", support.ChatLink),
 	)
 
 	if _, err := h.bot.Send(message); err != nil {
