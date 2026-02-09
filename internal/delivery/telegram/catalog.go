@@ -57,9 +57,10 @@ func (h *Handler) handlerCatalogCommand(
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 	if _, err := h.bot.Send(message); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_catalog", err)
 		logger.Log.Errorw("failed to send catalog message",
 			"chat_id", chatID,
-			"err", err,
+			"err", wrapped,
 		)
 		return
 	}

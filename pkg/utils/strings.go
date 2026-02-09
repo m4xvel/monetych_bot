@@ -36,6 +36,64 @@ type Messages struct {
 	ThanksForReviewText    string
 	ChatClosedText         string
 	WriteReviewText        string
+
+	AgreeButtonText                    string
+	BackButtonText                     string
+	AcceptOrderButtonText              string
+	SupportContactTemplate             string
+	CommunicationBlockedCommandText    string
+	CommunicationBlockedCallbackText   string
+	NeedAcceptRulesText                string
+	VerificationRequestSentToast       string
+	VerificationRequestReceivedToast   string
+	MediaSentToast                     string
+	SearchTokenPromptText              string
+	SearchNotFoundText                 string
+	SearchShowMediaButtonTemplate      string
+	SearchMissingOrderText             string
+	SearchDealHeader                   string
+	SearchStatusLineTemplate           string
+	SearchCreatedLineTemplate          string
+	SearchUpdatedLineTemplate          string
+	SearchGameHeader                   string
+	SearchGameNameLineTemplate         string
+	SearchGameTypeLineTemplate         string
+	SearchUserHeader                   string
+	SearchUserNameLineTemplate         string
+	SearchUserChatIDLineTemplate       string
+	SearchUserVerifiedYes              string
+	SearchUserVerifiedNo               string
+	SearchUserTotalOrdersLineTemplate  string
+	SearchExpertHeader                 string
+	SearchExpertChatIDLineTemplate     string
+	SearchExpertActiveYes              string
+	SearchExpertActiveNo               string
+	SearchUserStateHeader              string
+	SearchUserStateLineTemplate        string
+	SearchUserStateUpdatedLineTemplate string
+	SearchChatHeader                   string
+	SenderUserLabel                    string
+	SenderExpertLabel                  string
+	SenderSystemLabel                  string
+	ChatMessageHeaderTemplate          string
+	ChatTextLineTemplate               string
+	ChatOtherLine                      string
+	ChatQuoteBlockTemplate             string
+	OrderStatusCreatedText             string
+	OrderStatusAcceptedText            string
+	OrderStatusExpertConfirmedText     string
+	OrderStatusCompletedText           string
+	OrderStatusDeclinedByExpertText    string
+	OrderStatusCanceledByUserText      string
+	UserStateIdleText                  string
+	UserStateStartText                 string
+	UserStateCommunicationText         string
+	UserStateWritingReviewText         string
+	MediaPhotoLabel                    string
+	MediaVideoLabel                    string
+	MediaDocumentWithNameTemplate      string
+	MediaDocumentLabel                 string
+	MediaVoiceLabel                    string
 }
 
 func NewMessages() *Messages {
@@ -69,6 +127,64 @@ func NewMessages() *Messages {
 		ThanksForReviewText:    "Спасибо за отзыв!",
 		ChatClosedText:         "Чат закрыт! Оцените наш сервис от 1 до 5 ⭐",
 		WriteReviewText:        "Теперь напишите ваш отзыв ✍️",
+
+		AgreeButtonText:                    "Соглашаюсь",
+		BackButtonText:                     "⬅️ Вернуться назад",
+		AcceptOrderButtonText:              "Принять",
+		SupportContactTemplate:             "Служба поддержи: %s",
+		CommunicationBlockedCommandText:    "Вы уже общаетесь с экспертом.\nИспользуйте чат или дождитесь завершения заказа.",
+		CommunicationBlockedCallbackText:   "Эта кнопка недоступна во время общения с экспертом",
+		NeedAcceptRulesText:                "Чтобы продолжить работу с ботом, необходимо принять [Публичную оферту](https://google.com) и [Политику конфиденциальности](https://google.com), нажав «Соглашаюсь»",
+		VerificationRequestSentToast:       "Отправлено пользователю",
+		VerificationRequestReceivedToast:   "Запрос получен",
+		MediaSentToast:                     "Медиа отправлены",
+		SearchTokenPromptText:              "Укажите токен.\nПример:\n/search ZW6T-HJTK-6WY2",
+		SearchNotFoundText:                 "❌ Ничего не найдено по указанному токену",
+		SearchShowMediaButtonTemplate:      "📎 Показать медиа (%d)",
+		SearchMissingOrderText:             "❌ Ошибка: данные заказа отсутствуют",
+		SearchDealHeader:                   "🧾 <b>Сделка</b>\n",
+		SearchStatusLineTemplate:           "Статус: <b>%s</b>\n",
+		SearchCreatedLineTemplate:          "Создан: %s\n",
+		SearchUpdatedLineTemplate:          "Обновлён: %s\n",
+		SearchGameHeader:                   "🎮 <b>Игра</b>\n",
+		SearchGameNameLineTemplate:         "Название: <b>%s</b>\n",
+		SearchGameTypeLineTemplate:         "Тип: <b>%s</b>\n",
+		SearchUserHeader:                   "👤 <b>Пользователь</b>\n",
+		SearchUserNameLineTemplate:         "Имя: %s\n",
+		SearchUserChatIDLineTemplate:       "Chat ID: <code>%d</code>\n",
+		SearchUserVerifiedYes:              "Верифицирован: ✅\n",
+		SearchUserVerifiedNo:               "Верифицирован: ❌\n",
+		SearchUserTotalOrdersLineTemplate:  "Всего заказов: %d\n",
+		SearchExpertHeader:                 "🧑‍💼 <b>Эксперт</b>\n",
+		SearchExpertChatIDLineTemplate:     "Chat ID: <code>%d</code>\n",
+		SearchExpertActiveYes:              "Активен: ✅\n",
+		SearchExpertActiveNo:               "Активен: ❌\n",
+		SearchUserStateHeader:              "📝 <b>Состояние пользователя</b>\n",
+		SearchUserStateLineTemplate:        "State: <b>%s</b>\n",
+		SearchUserStateUpdatedLineTemplate: "Обновлено: %s\n",
+		SearchChatHeader:                   "\n💬 <b>Чат</b>\n",
+		SenderUserLabel:                    "👤 Пользователь",
+		SenderExpertLabel:                  "🧑‍💼 Эксперт",
+		SenderSystemLabel:                  "⚙️ Система",
+		ChatMessageHeaderTemplate:          "<b>%s</b> <i>%s</i>\n",
+		ChatTextLineTemplate:               "\t\t\t\t\t\t> %s",
+		ChatOtherLine:                      "\t\t\t\t\t\t> 🔡 <b>Другое</b>\n",
+		ChatQuoteBlockTemplate:             "<blockquote expandable>\n%s\n</blockquote>",
+		OrderStatusCreatedText:             "создан",
+		OrderStatusAcceptedText:            "принят",
+		OrderStatusExpertConfirmedText:     "подтверждён экспертом",
+		OrderStatusCompletedText:           "подтверждён клиентом",
+		OrderStatusDeclinedByExpertText:    "отменён экспертом",
+		OrderStatusCanceledByUserText:      "отменён клиентом",
+		UserStateIdleText:                  "в ожидании",
+		UserStateStartText:                 "начало",
+		UserStateCommunicationText:         "общается с экспертом",
+		UserStateWritingReviewText:         "пишет отзыв",
+		MediaPhotoLabel:                    "🖼 <b>Фото</b>\n",
+		MediaVideoLabel:                    "🎥 <b>Видео</b>\n",
+		MediaDocumentWithNameTemplate:      "📎 <b>Документ</b> : %s\n",
+		MediaDocumentLabel:                 "📎 <b>Документ</b>\n",
+		MediaVoiceLabel:                    "🎤 <b>Голосовое сообщение</b>\n",
 	}
 }
 

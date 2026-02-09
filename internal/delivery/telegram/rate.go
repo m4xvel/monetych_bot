@@ -14,7 +14,7 @@ func (h *Handler) handleRateSelect(
 ) {
 	chatID := cb.Message.Chat.ID
 	messageID := cb.Message.MessageID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("rate order action initiated",
 		"chat_id", chatID,
@@ -34,21 +34,40 @@ func (h *Handler) handleRateSelect(
 
 	var payload RateSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"rate",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid rate callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume rate callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	rate := payload.Rate
 	orderID := payload.OrderID
 
-	h.callbackTokenService.DeleteByActionAndOrderID(
+	if err := h.callbackTokenService.DeleteByActionAndOrderID(
 		ctx,
 		"rate",
 		orderID,
-	)
+	); err != nil {
+		logger.Log.Errorw("failed to delete rate callbacks",
+			"order_id", orderID,
+			"err", err,
+		)
+	}
 
 	if rate < 1 || rate > 5 {
 		logger.Log.Warnw("rate value out of allowed range",
@@ -90,10 +109,11 @@ func (h *Handler) handleRateSelect(
 			h.text.WriteReviewText,
 		),
 	); err != nil {
+		wrapped := wrapTelegramErr("telegram.edit_write_review_prompt", err)
 		logger.Log.Errorw("failed to prompt user to write review",
 			"chat_id", chatID,
 			"order_id", orderID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 }

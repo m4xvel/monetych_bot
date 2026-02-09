@@ -18,25 +18,26 @@ func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
 		"chat_id", chatID,
 	)
 
-	token := strings.TrimSpace(msg.CommandArguments())
-	if token == "" {
+	searchToken := strings.TrimSpace(msg.CommandArguments())
+	if searchToken == "" {
 		logger.Log.Warnw("search command called without token",
 			"chat_id", chatID,
 		)
 
 		if _, err := h.bot.Send(tgbotapi.NewMessage(
 			chatID,
-			"Укажите токен.\nПример:\n/search ZW6T-HJTK-6WY2",
+			h.text.SearchTokenPromptText,
 		)); err != nil {
+			wrapped := wrapTelegramErr("telegram.send_search_prompt", err)
 			logger.Log.Errorw("failed to prompt token for search",
 				"chat_id", chatID,
-				"err", err,
+				"err", wrapped,
 			)
 		}
 		return
 	}
 
-	result, err := h.orderService.FindByToken(ctx, token)
+	orderFull, err := h.orderService.FindByToken(ctx, searchToken)
 	if err != nil {
 		logger.Log.Warnw("order not found by token",
 			"chat_id", chatID,
@@ -44,11 +45,12 @@ func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
 
 		if _, err := h.bot.Send(tgbotapi.NewMessage(
 			chatID,
-			"❌ Ничего не найдено по указанному токену",
+			h.text.SearchNotFoundText,
 		)); err != nil {
+			wrapped := wrapTelegramErr("telegram.send_search_not_found", err)
 			logger.Log.Errorw("failed to send not found message",
 				"chat_id", chatID,
-				"err", err,
+				"err", wrapped,
 			)
 		}
 		return
@@ -56,32 +58,32 @@ func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
 
 	logger.Log.Infow("order found by token",
 		"chat_id", chatID,
-		"order_id", result.Order.ID,
+		"order_id", orderFull.Order.ID,
 	)
 
 	mediaCount := 0
-	for _, m := range result.Messages {
-		if m.Media != nil {
-			if _, ok := m.Media["file_id"].(string); ok {
+	for _, message := range orderFull.Messages {
+		if message.Media != nil {
+			if _, ok := message.Media["file_id"].(string); ok {
 				mediaCount++
 			}
 		}
 	}
 
-	text := FormatOrderFull(result)
+	formattedText := h.formatOrderFull(orderFull)
 
-	reply := tgbotapi.NewMessage(msg.Chat.ID, text)
-	reply.ParseMode = tgbotapi.ModeHTML
-	reply.ReplyToMessageID = msg.MessageID
+	response := tgbotapi.NewMessage(msg.Chat.ID, formattedText)
+	response.ParseMode = tgbotapi.ModeHTML
+	response.ReplyToMessageID = msg.MessageID
 
 	if mediaCount > 0 {
 
-		token, err := h.callbackTokenService.Create(
+		showMediaToken, err := h.callbackTokenService.Create(
 			ctx,
 			"show_media",
 			&SearchPayload{
 				ChatID:  chatID,
-				OrderID: result.Order.ID,
+				OrderID: orderFull.Order.ID,
 			},
 		)
 		if err != nil {
@@ -91,235 +93,256 @@ func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
 			)
 		}
 
-		button := tgbotapi.NewInlineKeyboardButtonData(
-			fmt.Sprintf("📎 Показать медиа (%d)", mediaCount),
-			"show_media:"+token,
+		showMediaButton := tgbotapi.NewInlineKeyboardButtonData(
+			fmt.Sprintf(h.text.SearchShowMediaButtonTemplate, mediaCount),
+			"show_media:"+showMediaToken,
 		)
 
-		reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(button),
+		response.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(showMediaButton),
 		)
 	}
 
-	if _, err := h.bot.Send(reply); err != nil {
+	if _, err := h.bot.Send(response); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_search_result", err)
 		logger.Log.Errorw("failed to send order search result",
 			"chat_id", chatID,
-			"order_id", result.Order.ID,
-			"err", err,
+			"order_id", orderFull.Order.ID,
+			"err", wrapped,
 		)
 	}
 }
 
-func FormatOrderFull(of *domain.OrderFull) string {
-	if of == nil {
-		return "❌ Ошибка: данные заказа отсутствуют"
+func (h *Handler) formatOrderFull(orderFull *domain.OrderFull) string {
+	if orderFull == nil {
+		return h.text.SearchMissingOrderText
 	}
 
-	var b strings.Builder
+	var builder strings.Builder
 
-	b.WriteString("🧾 <b>Сделка</b>\n")
-	b.WriteString(fmt.Sprintf("Статус: <b>%s</b>\n", formatOrderStatus(of.Order.Status)))
-	b.WriteString(fmt.Sprintf(
-		"Создан: %s\n",
-		of.Order.CreatedAt.Format("02.01.2006 15:04"),
+	builder.WriteString(h.text.SearchDealHeader)
+	builder.WriteString(fmt.Sprintf(
+		h.text.SearchStatusLineTemplate,
+		h.formatOrderStatus(orderFull.Order.Status),
 	))
-	b.WriteString(fmt.Sprintf(
-		"Обновлён: %s\n",
-		of.Order.UpdatedAt.Format("02.01.2006 15:04"),
+	builder.WriteString(fmt.Sprintf(
+		h.text.SearchCreatedLineTemplate,
+		orderFull.Order.CreatedAt.Format("02.01.2006 15:04"),
 	))
-	b.WriteString("\n")
+	builder.WriteString(fmt.Sprintf(
+		h.text.SearchUpdatedLineTemplate,
+		orderFull.Order.UpdatedAt.Format("02.01.2006 15:04"),
+	))
+	builder.WriteString("\n")
 
-	if of.Game != nil && of.Game.ID != 0 {
-		b.WriteString("🎮 <b>Игра</b>\n")
-		b.WriteString(fmt.Sprintf(
-			"Название: <b>%s</b>\n",
-			html.EscapeString(of.Game.Name),
+	if orderFull.Game != nil && orderFull.Game.ID != 0 {
+		builder.WriteString(h.text.SearchGameHeader)
+		builder.WriteString(fmt.Sprintf(
+			h.text.SearchGameNameLineTemplate,
+			html.EscapeString(orderFull.Game.Name),
 		))
-		if of.GameType != nil && of.GameType.ID != 0 {
-			b.WriteString(fmt.Sprintf(
-				"Тип: <b>%s</b>\n",
-				html.EscapeString(of.GameType.Name),
+		if orderFull.GameType != nil && orderFull.GameType.ID != 0 {
+			builder.WriteString(fmt.Sprintf(
+				h.text.SearchGameTypeLineTemplate,
+				html.EscapeString(orderFull.GameType.Name),
 			))
 		}
-		b.WriteString("\n")
+		builder.WriteString("\n")
 	}
 
-	if of.User != nil && of.User.ID != 0 {
-		b.WriteString("👤 <b>Пользователь</b>\n")
-		b.WriteString(fmt.Sprintf("Имя: %s\n", html.EscapeString(of.User.Name)))
-		b.WriteString(fmt.Sprintf("Chat ID: <code>%d</code>\n", of.User.ChatID))
-		if of.User.IsVerified {
-			b.WriteString("Верифицирован: ✅\n")
+	if orderFull.User != nil && orderFull.User.ID != 0 {
+		builder.WriteString(h.text.SearchUserHeader)
+		builder.WriteString(fmt.Sprintf(
+			h.text.SearchUserNameLineTemplate,
+			html.EscapeString(orderFull.User.Name),
+		))
+		builder.WriteString(fmt.Sprintf(
+			h.text.SearchUserChatIDLineTemplate,
+			orderFull.User.ChatID,
+		))
+		if orderFull.User.IsVerified {
+			builder.WriteString(h.text.SearchUserVerifiedYes)
 		} else {
-			b.WriteString("Верифицирован: ❌\n")
+			builder.WriteString(h.text.SearchUserVerifiedNo)
 		}
-		b.WriteString(fmt.Sprintf("Всего заказов: %d\n", of.User.TotalOrders))
-		b.WriteString("\n")
+		builder.WriteString(fmt.Sprintf(
+			h.text.SearchUserTotalOrdersLineTemplate,
+			orderFull.User.TotalOrders,
+		))
+		builder.WriteString("\n")
 	}
 
 	// --- EXPERT ---
-	if of.Expert != nil && of.Expert.ID != 0 {
-		b.WriteString("🧑‍💼 <b>Эксперт</b>\n")
-		b.WriteString(fmt.Sprintf("Chat ID: <code>%d</code>\n", of.Expert.TopicID))
-		if of.Expert.IsActive {
-			b.WriteString("Активен: ✅\n")
+	if orderFull.Expert != nil && orderFull.Expert.ID != 0 {
+		builder.WriteString(h.text.SearchExpertHeader)
+		builder.WriteString(fmt.Sprintf(
+			h.text.SearchExpertChatIDLineTemplate,
+			orderFull.Expert.TopicID,
+		))
+		if orderFull.Expert.IsActive {
+			builder.WriteString(h.text.SearchExpertActiveYes)
 		} else {
-			b.WriteString("Активен: ❌\n")
+			builder.WriteString(h.text.SearchExpertActiveNo)
 		}
-		b.WriteString("\n")
+		builder.WriteString("\n")
 	}
 
 	// --- USER STATE ---
-	if of.UserState != nil && of.UserState.State != "" {
-		b.WriteString("📝 <b>Состояние пользователя</b>\n")
-		b.WriteString(fmt.Sprintf("State: <b>%s</b>\n", formatStateName(of.UserState.State)))
-		b.WriteString(fmt.Sprintf(
-			"Обновлено: %s\n",
-			of.UserState.UpdatedAt.Format("02.01.2006 15:04"),
+	if orderFull.UserState != nil && orderFull.UserState.State != "" {
+		builder.WriteString(h.text.SearchUserStateHeader)
+		builder.WriteString(fmt.Sprintf(
+			h.text.SearchUserStateLineTemplate,
+			h.formatStateName(orderFull.UserState.State),
+		))
+		builder.WriteString(fmt.Sprintf(
+			h.text.SearchUserStateUpdatedLineTemplate,
+			orderFull.UserState.UpdatedAt.Format("02.01.2006 15:04"),
 		))
 	}
 
 	// --- CHAT ---
-	if len(of.Messages) > 0 {
-		b.WriteString("\n💬 <b>Чат</b>\n")
+	if len(orderFull.Messages) > 0 {
+		builder.WriteString(h.text.SearchChatHeader)
 
-		var chat strings.Builder
+		var chatBuilder strings.Builder
 
-		for _, m := range of.Messages {
-			chat.WriteString(formatChatMessage(m))
+		for _, message := range orderFull.Messages {
+			chatBuilder.WriteString(h.formatChatMessage(message))
 		}
 
-		if chat.Len() > 0 {
-			b.WriteString(collapsibleQuoteHTML(chat.String()))
+		if chatBuilder.Len() > 0 {
+			builder.WriteString(h.collapsibleQuoteHTML(chatBuilder.String()))
 		}
 	}
 
-	return b.String()
+	return builder.String()
 }
 
-func formatChatMessage(m domain.ChatMessage) string {
+func (h *Handler) formatChatMessage(chatMessage domain.ChatMessage) string {
 	var sender string
-	switch m.SenderRole {
+	switch chatMessage.SenderRole {
 	case domain.SenderUser:
-		sender = "👤 Пользователь"
+		sender = h.text.SenderUserLabel
 	case domain.SenderExpert:
-		sender = "🧑‍💼 Эксперт"
+		sender = h.text.SenderExpertLabel
 	default:
-		sender = "⚙️ Система"
+		sender = h.text.SenderSystemLabel
 	}
 
-	var b strings.Builder
+	var builder strings.Builder
 
-	b.WriteString(fmt.Sprintf(
-		"<b>%s</b> <i>%s</i>\n",
+	builder.WriteString(fmt.Sprintf(
+		h.text.ChatMessageHeaderTemplate,
 		sender,
-		m.CreatedAt.Format("02.01 15:04"),
+		chatMessage.CreatedAt.Format("02.01 15:04"),
 	))
 
 	wroteContent := false
 
-	if m.Text != nil && *m.Text != "" {
-		b.WriteString(fmt.Sprintf("\t\t\t\t\t\t> %s", *m.Text))
-		b.WriteString("\n")
+	if chatMessage.Text != nil && *chatMessage.Text != "" {
+		builder.WriteString(fmt.Sprintf(h.text.ChatTextLineTemplate, *chatMessage.Text))
+		builder.WriteString("\n")
 		wroteContent = true
 	}
 
-	if m.Media != nil {
-		b.WriteString(fmt.Sprintf("\t\t\t\t\t\t> %s",
-			formatMedia(m.MessageType, m.Media)))
+	if chatMessage.Media != nil {
+		builder.WriteString(fmt.Sprintf(
+			h.text.ChatTextLineTemplate,
+			h.formatMedia(chatMessage.MessageType, chatMessage.Media),
+		))
 		wroteContent = true
 	}
 
 	if !wroteContent {
-		b.WriteString("\t\t\t\t\t\t> 🔡 <b>Другое</b>\n")
+		builder.WriteString(h.text.ChatOtherLine)
 	}
 
-	b.WriteString("\n")
-	return b.String()
+	builder.WriteString("\n")
+	return builder.String()
 }
 
-func formatOrderStatus(
+func (h *Handler) formatOrderStatus(
 	status domain.OrderStatus,
 ) string {
 
 	switch status {
 
 	case domain.OrderNew:
-		return "создан"
+		return h.text.OrderStatusCreatedText
 
 	case domain.OrderAccepted:
-		return "принят"
+		return h.text.OrderStatusAcceptedText
 
 	case domain.OrderExpertConfirmed:
-		return "подтверждён экспертом"
+		return h.text.OrderStatusExpertConfirmedText
 
 	case domain.OrderCompleted:
-		return "подтверждён клиентом"
+		return h.text.OrderStatusCompletedText
 
 	case domain.OrderDeclined:
-		return "отменён экспертом"
+		return h.text.OrderStatusDeclinedByExpertText
 
 	case domain.OrderCanceled:
-		return "отменён клиентом"
+		return h.text.OrderStatusCanceledByUserText
 	}
 
 	return ""
 }
 
-func formatStateName(
+func (h *Handler) formatStateName(
 	state domain.StateName,
 ) string {
 
 	switch state {
 
 	case domain.StateIdle:
-		return "в ожидании"
+		return h.text.UserStateIdleText
 
 	case domain.StateStart:
-		return "начало"
+		return h.text.UserStateStartText
 
 	case domain.StateCommunication:
-		return "общается с экспертом"
+		return h.text.UserStateCommunicationText
 
 	case domain.StateWritingReview:
-		return "пишет отзыв"
+		return h.text.UserStateWritingReviewText
 	}
 
 	return ""
 }
 
-func formatMedia(
+func (h *Handler) formatMedia(
 	msgType domain.MessageType,
 	media map[string]any,
 ) string {
 
 	switch msgType {
 	case domain.MessagePhoto:
-		return "🖼 <b>Фото</b>\n"
+		return h.text.MediaPhotoLabel
 
 	case domain.MessageVideo:
-		return "🎥 <b>Видео</b>\n"
+		return h.text.MediaVideoLabel
 
 	case domain.MessageDocument:
 		if name, ok := media["file_name"].(string); ok {
-			return fmt.Sprintf("📎 <b>Документ</b> : %s\n", name)
+			return fmt.Sprintf(h.text.MediaDocumentWithNameTemplate, name)
 		}
-		return "📎 <b>Документ</b>\n"
+		return h.text.MediaDocumentLabel
 
 	case domain.MessageVoice:
-		return "🎤 <b>Голосовое сообщение</b>\n"
+		return h.text.MediaVoiceLabel
 	}
 
 	return ""
 }
 
-func collapsibleQuoteHTML(text string) string {
+func (h *Handler) collapsibleQuoteHTML(text string) string {
 	if text == "" {
 		return ""
 	}
 
 	return fmt.Sprintf(
-		"<blockquote expandable>\n%s\n</blockquote>",
+		h.text.ChatQuoteBlockTemplate,
 		text,
 	)
 }

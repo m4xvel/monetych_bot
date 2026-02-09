@@ -2,7 +2,9 @@ package usecase
 
 import (
 	"context"
+	"errors"
 
+	"github.com/m4xvel/monetych_bot/internal/apperr"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
@@ -30,6 +32,13 @@ func (r *ReviewService) Rate(
 	)
 
 	if err != nil {
+		if errors.Is(err, apperr.ErrConflict) {
+			logger.Log.Infow("review already exists",
+				"order_id", orderID,
+				"rating", rating,
+			)
+			return nil
+		}
 		logger.Log.Errorw("failed to create review",
 			"order_id", orderID,
 			"rating", rating,

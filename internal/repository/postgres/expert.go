@@ -25,10 +25,11 @@ func (r *ExpertRepo) Get(ctx context.Context) ([]domain.Expert, error) {
 
 	rows, err := r.pool.Query(ctx, q)
 	if err != nil {
+		wrapped := dbErr("expert.get", err)
 		logger.Log.Errorw("failed to query experts",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 	defer rows.Close()
 
@@ -41,19 +42,21 @@ func (r *ExpertRepo) Get(ctx context.Context) ([]domain.Expert, error) {
 			&e.TopicID,
 			&e.IsActive,
 		); err != nil {
+			wrapped := dbErr("expert.scan", err)
 			logger.Log.Errorw("failed to scan expert row",
-				"err", err,
+				"err", wrapped,
 			)
-			return nil, err
+			return nil, wrapped
 		}
 		out = append(out, e)
 	}
 
 	if err := rows.Err(); err != nil {
+		wrapped := dbErr("expert.rows", err)
 		logger.Log.Errorw("rows error while iterating experts",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	return out, nil

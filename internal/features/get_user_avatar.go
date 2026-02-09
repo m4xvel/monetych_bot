@@ -12,6 +12,7 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/apperr"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
@@ -28,6 +29,9 @@ func (f *Features) GetUserAvatar(bot *tgbotapi.BotAPI, chatID int64) string {
 	})
 
 	if err != nil || photos.TotalCount == 0 {
+		if err != nil {
+			err = apperr.WrapTelegram("telegram.get_user_profile_photos", err)
+		}
 		logger.Log.Warnw("user photo not found",
 			"chat_id", chatID,
 			"err", err,
@@ -39,6 +43,7 @@ func (f *Features) GetUserAvatar(bot *tgbotapi.BotAPI, chatID int64) string {
 
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
+		err = apperr.WrapTelegram("telegram.get_file", err)
 		logger.Log.Errorw("failed to get photo file",
 			"chat_id", chatID,
 			"err", err,

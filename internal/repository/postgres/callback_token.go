@@ -34,10 +34,11 @@ func (r *CallbackTokenRepo) Create(
 		callback.Action,
 		callback.Payload,
 	); err != nil {
+		wrapped := dbErr("callback_token.create", err)
 		logger.Log.Errorw("failed to create callback token",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	return nil
@@ -60,17 +61,19 @@ func (r *CallbackTokenRepo) Consume(
 	).Scan(&callback.Payload)
 
 	if errors.Is(err, pgx.ErrNoRows) {
+		wrapped := dbErr("callback_token.consume", err)
 		logger.Log.Errorw("error no rows callback token",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	if err != nil {
+		wrapped := dbErr("callback_token.consume", err)
 		logger.Log.Errorw("failed to consume callback token",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	return nil
@@ -95,5 +98,8 @@ func (r *CallbackTokenRepo) DeleteByActionAndOrderID(
 		strconv.Itoa(orderID),
 	)
 
-	return err
+	if err != nil {
+		return dbErr("callback_token.delete_by_action_and_order_id", err)
+	}
+	return nil
 }

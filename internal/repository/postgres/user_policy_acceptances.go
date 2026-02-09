@@ -33,8 +33,10 @@ func (r *UserPolicyAcceptancesRepo) Set(
 	`
 
 	_, err := r.pool.Exec(ctx, q, chatID, version)
-
-	return err
+	if err != nil {
+		return dbErr("user_policy_acceptances.set", err)
+	}
+	return nil
 }
 
 func (r *UserPolicyAcceptancesRepo) IsUserAccepted(
@@ -56,6 +58,8 @@ func (r *UserPolicyAcceptancesRepo) IsUserAccepted(
 	var exists bool
 
 	err := r.pool.QueryRow(ctx, q, chatID, version).Scan(&exists)
-
-	return exists, err
+	if err != nil {
+		return false, dbErr("user_policy_acceptances.is_accepted", err)
+	}
+	return exists, nil
 }

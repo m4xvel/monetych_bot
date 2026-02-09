@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
@@ -34,7 +35,7 @@ func (s *UserService) AddUser(
 	)
 
 	if err != nil {
-		if err == ErrUserAlreadyExists {
+		if errors.Is(err, ErrUserAlreadyExists) {
 			logger.Log.Debugw("user already exists",
 				"chat_id", chatID,
 			)

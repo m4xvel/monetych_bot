@@ -49,9 +49,10 @@ func (h *Handler) handleStartCommand(
 		cfg := tgbotapi.NewSetMyCommandsWithScope(scope, commands...)
 
 		if _, err := h.bot.Request(cfg); err != nil {
+			wrapped := wrapTelegramErr("telegram.set_support_commands", err)
 			logger.Log.Errorw("failed to set support commands",
 				"chat_id", chatID,
-				"err", err,
+				"err", wrapped,
 			)
 		}
 
@@ -68,18 +69,25 @@ func (h *Handler) handleStartCommand(
 	cfg := tgbotapi.NewSetMyCommandsWithScope(scope, commands...)
 
 	if _, err := h.bot.Request(cfg); err != nil {
+		wrapped := wrapTelegramErr("telegram.set_user_commands", err)
 		logger.Log.Errorw("failed to set user commands",
 			"chat_id", chatID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 
-	h.bot.SetChatMenuButton(tgbotapi.SetChatMenuButtonConfig{
+	if _, err := h.bot.SetChatMenuButton(tgbotapi.SetChatMenuButtonConfig{
 		ChatID: chatID,
 		MenuButton: tgbotapi.MenuButton{
 			Type: "commands",
 		},
-	})
+	}); err != nil {
+		wrapped := wrapTelegramErr("telegram.set_chat_menu_button", err)
+		logger.Log.Errorw("failed to set chat menu button",
+			"chat_id", chatID,
+			"err", wrapped,
+		)
+	}
 
 	accepted, _ := h.userPolicyAcceptancesService.IsAccepted(ctx, chatID)
 	if !accepted {
@@ -102,20 +110,27 @@ func (h *Handler) handleStartCommand(
 
 		message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData(
-				"Соглашаюсь",
+				h.text.AgreeButtonText,
 				"accept_privacy:"+token,
 			)),
 		)
 
 		if _, err := h.bot.Send(message); err != nil {
+			wrapped := wrapTelegramErr("telegram.send_hello", err)
 			logger.Log.Errorw("failed to send hello message",
 				"chat_id", chatID,
-				"err", err,
+				"err", wrapped,
 			)
 		}
 	}
 
-	h.bot.Send(tgbotapi.NewMessage(chatID, h.textDynamic.HelloTextNotFirst()))
+	if _, err := h.bot.Send(tgbotapi.NewMessage(chatID, h.textDynamic.HelloTextNotFirst())); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_hello_not_first", err)
+		logger.Log.Errorw("failed to send hello message (not first)",
+			"chat_id", chatID,
+			"err", wrapped,
+		)
+	}
 
 	if accepted {
 		h.handlerCatalogCommand(ctx, msg)

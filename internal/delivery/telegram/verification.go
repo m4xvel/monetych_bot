@@ -13,7 +13,7 @@ func (h *Handler) handleVerificationSelect(
 	cb *tgbotapi.CallbackQuery,
 ) {
 	chatID := cb.Message.Chat.ID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, "Отправлено пользователю"))
+	h.answerCallback(cb, h.text.VerificationRequestSentToast)
 
 	logger.Log.Infow("verification request initiated",
 		"chat_id", chatID,
@@ -39,6 +39,14 @@ func (h *Handler) handleVerificationSelect(
 		"verification",
 		&payload,
 	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid verification callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
 		logger.Log.Errorw("failed to consume verification callback token",
 			"chat_id", chatID,
 			"err", err,
@@ -75,10 +83,11 @@ func (h *Handler) handleVerificationSelect(
 	message.ReplyMarkup = &markup
 
 	if _, err := h.bot.Send(message); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_verification_message", err)
 		logger.Log.Errorw("failed to send verification message to user",
 			"chat_id", payload.UserChatID,
 			"order_id", payload.OrderID,
-			"err", err,
+			"err", wrapped,
 		)
 		return
 	}
@@ -89,7 +98,7 @@ func (h *Handler) handleVerifySelect(
 	cb *tgbotapi.CallbackQuery,
 ) {
 	chatID := cb.Message.Chat.ID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, "Запрос получен"))
+	h.answerCallback(cb, h.text.VerificationRequestReceivedToast)
 
 	logger.Log.Infow("user verification button clicked",
 		"chat_id", chatID,
@@ -115,6 +124,14 @@ func (h *Handler) handleVerifySelect(
 		"verify",
 		&payload,
 	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid verify callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
 		logger.Log.Errorw("failed to consume verify callback token",
 			"chat_id", chatID,
 			"err", err,
@@ -138,11 +155,16 @@ func (h *Handler) handleVerifySelect(
 		return
 	}
 
-	h.callbackTokenService.DeleteByActionAndOrderID(
+	if err := h.callbackTokenService.DeleteByActionAndOrderID(
 		ctx,
 		"verification",
 		payload.OrderID,
-	)
+	); err != nil {
+		logger.Log.Errorw("failed to delete verification callbacks",
+			"order_id", payload.OrderID,
+			"err", err,
+		)
+	}
 
 	edit := tgbotapi.EditMessageReplyMarkupConfig{
 		BaseEdit: tgbotapi.BaseEdit{
@@ -153,9 +175,10 @@ func (h *Handler) handleVerifySelect(
 	}
 
 	if _, err := h.bot.Send(edit); err != nil {
+		wrapped := wrapTelegramErr("telegram.remove_verification_keyboard", err)
 		logger.Log.Errorw("failed to remove verification keyboard",
 			"chat_id", chatID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 
@@ -163,9 +186,10 @@ func (h *Handler) handleVerifySelect(
 		chatID,
 		h.text.SuccessfulVerify,
 	)); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_verify_success", err)
 		logger.Log.Errorw("failed to send verify success message",
 			"chat_id", chatID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 

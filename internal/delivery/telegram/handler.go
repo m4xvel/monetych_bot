@@ -199,10 +199,11 @@ func (h *Handler) deleteOrderMessage(ctx context.Context, orderID int) {
 			sent.ChatID,
 			sent.MessageID,
 		)); err != nil {
+			wrapped := wrapTelegramErr("telegram.delete_message", err)
 			logger.Log.Errorw("failed to delete message",
 				"chat_id", sent.ChatID,
 				"message_id", sent.MessageID,
-				"err", err,
+				"err", wrapped,
 			)
 		}
 	}
@@ -257,17 +258,17 @@ func (h *Handler) renderControlPanel(
 		"declined:"+tokenDeclined,
 	)
 
-	rows := []tgbotapi.InlineKeyboardButton{
+	acceptRow := []tgbotapi.InlineKeyboardButton{
 		btnAccept,
 	}
 
-	rowsDecline := []tgbotapi.InlineKeyboardButton{
+	declineRow := []tgbotapi.InlineKeyboardButton{
 		btnDecline,
 	}
 
-	markupRows := [][]tgbotapi.InlineKeyboardButton{
-		rows,
-		rowsDecline,
+	keyboardRows := [][]tgbotapi.InlineKeyboardButton{
+		acceptRow,
+		declineRow,
 	}
 
 	if !isVerified {
@@ -290,14 +291,14 @@ func (h *Handler) renderControlPanel(
 			"verification:"+tokenVerification,
 		)
 
-		markupRows = append(
-			markupRows,
+		keyboardRows = append(
+			keyboardRows,
 			[]tgbotapi.InlineKeyboardButton{btnVerification},
 		)
 	}
 
 	markup := tgbotapi.NewInlineKeyboardMarkup(
-		markupRows...,
+		keyboardRows...,
 	)
 
 	msg := tgbotapi.NewMessage(
@@ -313,10 +314,11 @@ func (h *Handler) renderControlPanel(
 
 	sent, err := h.bot.Send(msg)
 	if err != nil {
+		wrapped := wrapTelegramErr("telegram.send_control_panel", err)
 		logger.Log.Errorw("failed to send control panel message",
 			"order_id", order.ID,
 			"topic_id", topicID,
-			"err", err,
+			"err", wrapped,
 		)
 		return
 	}
@@ -383,7 +385,7 @@ func (h *Handler) renderEditControlPanel(
 		"declined:"+tokenDeclined,
 	)
 
-	rows := [][]tgbotapi.InlineKeyboardButton{
+	keyboardRows := [][]tgbotapi.InlineKeyboardButton{
 		{btnAccept},
 		{btnDecline},
 	}
@@ -408,10 +410,10 @@ func (h *Handler) renderEditControlPanel(
 			"verification:"+tokenVerification,
 		)
 
-		rows = append(rows, []tgbotapi.InlineKeyboardButton{btnVerification})
+		keyboardRows = append(keyboardRows, []tgbotapi.InlineKeyboardButton{btnVerification})
 	}
 
-	markup := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	markup := tgbotapi.NewInlineKeyboardMarkup(keyboardRows...)
 
 	editMessage := tgbotapi.NewEditMessageText(
 		topicID,
@@ -424,7 +426,14 @@ func (h *Handler) renderEditControlPanel(
 	)
 	editMessage.ReplyMarkup = &markup
 
-	h.bot.Send(editMessage)
+	if _, err := h.bot.Send(editMessage); err != nil {
+		wrapped := wrapTelegramErr("telegram.edit_control_panel", err)
+		logger.Log.Errorw("failed to edit control panel message",
+			"topic_id", topicID,
+			"message_id", messageID,
+			"err", wrapped,
+		)
+	}
 }
 
 func (h *Handler) expertGuard(
@@ -555,10 +564,16 @@ func (h *Handler) stateGuard(
 	}
 
 	if upd.Message != nil && upd.Message.IsCommand() {
-		h.bot.Send(tgbotapi.NewMessage(
+		if _, err := h.bot.Send(tgbotapi.NewMessage(
 			chatID,
-			"Вы уже общаетесь с экспертом.\nИспользуйте чат или дождитесь завершения заказа.",
-		))
+			h.text.CommunicationBlockedCommandText,
+		)); err != nil {
+			wrapped := wrapTelegramErr("telegram.send_communication_blocked", err)
+			logger.Log.Errorw("failed to send communication blocked message",
+				"chat_id", chatID,
+				"err", wrapped,
+			)
+		}
 
 		logger.Log.Warnw("command blocked during communication",
 			"user_chat_id", chatID,
@@ -583,7 +598,7 @@ func (h *Handler) stateGuard(
 
 		h.answerCallback(
 			upd.CallbackQuery,
-			"Эта кнопка недоступна во время общения с экспертом",
+			h.text.CommunicationBlockedCallbackText,
 		)
 
 		logger.Log.Warnw("callback blocked during communication",
@@ -642,10 +657,16 @@ func (h *Handler) startGuard(
 	if !accepted {
 		message := tgbotapi.NewMessage(
 			chatID,
-			"Чтобы продолжить работу с ботом, необходимо принять [Публичную оферту](https://google.com) и [Политику конфиденциальности](https://google.com), нажав «Соглашаюсь»",
+			h.text.NeedAcceptRulesText,
 		)
 		message.ParseMode = "Markdown"
-		h.bot.Send(message)
+		if _, err := h.bot.Send(message); err != nil {
+			wrapped := wrapTelegramErr("telegram.send_need_accept_rules", err)
+			logger.Log.Errorw("failed to send accept rules message",
+				"chat_id", chatID,
+				"err", wrapped,
+			)
+		}
 
 		logger.Log.Warnw("command is blocked, the user did not accept rules",
 			"user_chat_id", chatID,
@@ -754,7 +775,13 @@ func (h *Handler) answerCallback(
 	cb *tgbotapi.CallbackQuery,
 	text string,
 ) {
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, text))
+	if _, err := h.bot.Request(tgbotapi.NewCallback(cb.ID, text)); err != nil {
+		wrapped := wrapTelegramErr("telegram.answer_callback", err)
+		logger.Log.Errorw("failed to answer callback",
+			"callback_id", cb.ID,
+			"err", wrapped,
+		)
+	}
 }
 
 func (h *Handler) supportOnly(handler HandlerFunc) HandlerFunc {

@@ -42,10 +42,11 @@ func (r *UserStateRepo) Set(
 
 	_, err := r.pool.Exec(ctx, q, chatID, state.State, state.OrderID)
 	if err != nil {
+		wrapped := dbErr("user_state.set", err)
 		logger.Log.Errorw("failed to set user state",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	return nil
@@ -94,10 +95,11 @@ func (r *UserStateRepo) GetByChatID(
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
+		wrapped := dbErr("user_state.get_by_chat_id", err)
 		logger.Log.Errorw("failed to get user state by chat id",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	return &us, nil
@@ -132,10 +134,11 @@ func (r *UserStateRepo) GetByThreadID(
 		&us.ExpertID,
 	)
 	if err != nil {
+		wrapped := dbErr("user_state.get_by_thread_id", err)
 		logger.Log.Errorw("failed to get user state by thread id",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	return &us, nil

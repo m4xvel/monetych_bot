@@ -33,10 +33,11 @@ func (r *GameRepo) Get(
 
 	rows, err := r.pool.Query(ctx, q)
 	if err != nil {
+		wrapped := dbErr("game.get", err)
 		logger.Log.Errorw("failed to query games with types",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 	defer rows.Close()
 
@@ -50,19 +51,21 @@ func (r *GameRepo) Get(
 			&r.TypeID,
 			&r.TypeName,
 		); err != nil {
+			wrapped := dbErr("game.scan", err)
 			logger.Log.Errorw("failed to scan game row",
-				"err", err,
+				"err", wrapped,
 			)
-			return nil, err
+			return nil, wrapped
 		}
 		out = append(out, r)
 	}
 
 	if err := rows.Err(); err != nil {
+		wrapped := dbErr("game.rows", err)
 		logger.Log.Errorw("rows error while iterating games",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	return out, nil

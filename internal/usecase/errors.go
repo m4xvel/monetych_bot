@@ -1,8 +1,7 @@
 package usecase
 
-import "errors"
+import "github.com/m4xvel/monetych_bot/internal/apperr"
 
-var ErrNotFound = errors.New("not found")
-var ErrAdd = errors.New("Failed to add user")
-var ErrUserAlreadyExists = errors.New("user already exists")
-var ErrInvalidToken = errors.New("token is invalid")
+var ErrNotFound = apperr.ErrNotFound
+var ErrUserAlreadyExists = apperr.ErrConflict
+var ErrInvalidToken = apperr.ErrInvalid

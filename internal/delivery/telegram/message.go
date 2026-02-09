@@ -127,7 +127,14 @@ func (h *Handler) handleUserMessage(
 			)
 		}
 
-		h.bot.Send(tgbotapi.NewMessage(chatID, h.text.ThanksForReviewText))
+		if _, err := h.bot.Send(tgbotapi.NewMessage(chatID, h.text.ThanksForReviewText)); err != nil {
+			wrapped := wrapTelegramErr("telegram.send_thanks_review", err)
+			logger.Log.Errorw("failed to send thanks for review",
+				"chat_id", chatID,
+				"review_id", *state.ReviewID,
+				"err", wrapped,
+			)
+		}
 	}
 }
 
@@ -146,7 +153,13 @@ func (h *Handler) forwardToExpert(
 		"message_thread_id": int64PtrToStr(state.OrderThreadID),
 	}
 
-	h.bot.MakeRequest("copyMessage", params)
+	if _, err := h.bot.MakeRequest("copyMessage", params); err != nil {
+		wrapped := wrapTelegramErr("telegram.copy_user_message", err)
+		logger.Log.Errorw("failed to forward user message to expert",
+			"order_id", state.OrderID,
+			"err", wrapped,
+		)
+	}
 }
 
 func (h *Handler) handleExpertMessage(
@@ -211,10 +224,11 @@ func (h *Handler) handleExpertMessage(
 	}
 
 	if _, err := h.bot.MakeRequest("copyMessage", params); err != nil {
+		wrapped := wrapTelegramErr("telegram.copy_expert_message", err)
 		logger.Log.Errorw("failed to forward expert message to user",
 			"order_id", state.OrderID,
 			"user_chat_id", state.UserChatID,
-			"err", err,
+			"err", wrapped,
 		)
 		return
 	}

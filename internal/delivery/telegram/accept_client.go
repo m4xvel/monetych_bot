@@ -15,7 +15,7 @@ func (h *Handler) handleAcceptClientSelect(
 ) {
 	chatID := cb.Message.Chat.ID
 	messageID := cb.Message.MessageID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("client confirm payment action initiated",
 		"chat_id", chatID,
@@ -35,21 +35,44 @@ func (h *Handler) handleAcceptClientSelect(
 
 	var payload CancelOrderSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"accept_client",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid accept client callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume accept client callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	orderID := payload.OrderID
 
 	if err := h.orderService.SetCompletedStatus(ctx, orderID, chatID); err != nil {
+		if isOrderAlreadyProcessed(err) {
+			logger.Log.Infow("order already processed on client completion",
+				"chat_id", chatID,
+				"order_id", orderID,
+				"err", err,
+			)
+			return
+		}
 		logger.Log.Errorw("failed to complete order by client",
 			"chat_id", chatID,
 			"order_id", orderID,
 			"err", err,
 		)
+		return
 	}
 
 	logger.Log.Infow("order completed by client",
@@ -72,10 +95,11 @@ func (h *Handler) handleAcceptClientSelect(
 		msg.MessageThreadID = *order.ThreadID
 
 		if _, err := h.bot.Send(msg); err != nil {
+			wrapped := wrapTelegramErr("telegram.notify_expert_completion", err)
 			logger.Log.Errorw("failed to notify expert about order completion",
 				"order_id", orderID,
 				"topic_id", *order.TopicID,
-				"err", err,
+				"err", wrapped,
 			)
 		}
 	}
@@ -87,10 +111,11 @@ func (h *Handler) handleAcceptClientSelect(
 			h.text.YouConfirmedPayment,
 		),
 	); err != nil {
+		wrapped := wrapTelegramErr("telegram.edit_client_confirmation", err)
 		logger.Log.Errorw("failed to edit client confirmation message",
 			"chat_id", chatID,
 			"order_id", orderID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 
@@ -124,10 +149,11 @@ func (h *Handler) handleAcceptClientSelect(
 	)
 
 	if _, err := h.bot.Send(rateMsg); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_rate_prompt", err)
 		logger.Log.Errorw("failed to send rate prompt to client",
 			"chat_id", chatID,
 			"order_id", orderID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 

@@ -14,7 +14,7 @@ func (h *Handler) handleConfirmedSelect(
 ) {
 	chatID := cb.Message.Chat.ID
 	messageID := cb.Message.MessageID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("confirm order ui step initiated",
 		"chat_id", chatID,
@@ -34,22 +34,41 @@ func (h *Handler) handleConfirmedSelect(
 
 	var payload ConfirmedAndDeclinedOrderSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"confirmed",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid confirmed callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume confirmed callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	orderID := payload.OrderID
 	topicID := payload.TopicID
 	threadID := payload.ThreadID
 
-	h.callbackTokenService.DeleteByActionAndOrderID(
+	if err := h.callbackTokenService.DeleteByActionAndOrderID(
 		ctx,
 		"declined",
 		orderID,
-	)
+	); err != nil {
+		logger.Log.Errorw("failed to delete declined callbacks",
+			"order_id", orderID,
+			"err", err,
+		)
+	}
 
 	tokenReaffirm, err := h.callbackTokenService.Create(
 		ctx,
@@ -89,7 +108,7 @@ func (h *Handler) handleConfirmedSelect(
 	}
 
 	btnBack := tgbotapi.NewInlineKeyboardButtonData(
-		"⬅️ Вернуться назад",
+		h.text.BackButtonText,
 		"back:"+tokenBack,
 	)
 
@@ -106,11 +125,12 @@ func (h *Handler) handleConfirmedSelect(
 	editMessage.ReplyMarkup = &markup
 
 	if _, err := h.bot.Send(editMessage); err != nil {
+		wrapped := wrapTelegramErr("telegram.edit_confirm_confirmation", err)
 		logger.Log.Errorw("failed to edit confirmation message",
 			"chat_id", chatID,
 			"order_id", orderID,
 			"topic_id", topicID,
-			"err", err,
+			"err", wrapped,
 		)
 		return
 	}

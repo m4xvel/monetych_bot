@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/m4xvel/monetych_bot/internal/apperr"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
 
@@ -15,7 +16,7 @@ func (h *Handler) handleAcceptSelect(
 	cb *tgbotapi.CallbackQuery,
 ) {
 	chatID := cb.Message.Chat.ID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("expert accepted order click",
 		"callback_data", cb.Data,
@@ -35,25 +36,51 @@ func (h *Handler) handleAcceptSelect(
 
 	var payload AcceptOrderSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"accept",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid accept callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume accept callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	chatUserID := payload.ChatID
 	messageUserID := payload.UserMessageID
 	orderID := payload.OrderID
 	expertID := payload.ExpertID
 
-	h.callbackTokenService.DeleteByActionAndOrderID(
+	if err := h.callbackTokenService.DeleteByActionAndOrderID(
 		ctx,
 		"cancel",
 		orderID,
-	)
+	); err != nil {
+		logger.Log.Errorw("failed to delete cancel callbacks",
+			"order_id", orderID,
+			"err", err,
+		)
+	}
 
 	if err := h.orderService.SetAcceptedStatus(ctx, orderID); err != nil {
+		if isOrderAlreadyProcessed(err) {
+			logger.Log.Infow("order already processed on accept",
+				"order_id", orderID,
+				"err", err,
+			)
+			return
+		}
 		logger.Log.Warnw("failed to accept order",
 			"order_id", orderID,
 			"err", err,
@@ -70,6 +97,7 @@ func (h *Handler) handleAcceptSelect(
 	if err != nil || order == nil {
 		logger.Log.Errorw("failed to get order after accept",
 			"order_id", orderID,
+			"err", err,
 		)
 		return
 	}
@@ -78,6 +106,7 @@ func (h *Handler) handleAcceptSelect(
 	if err != nil {
 		logger.Log.Errorw("failed to get expert",
 			"expert_id", expertID,
+			"err", err,
 		)
 		return
 	}
@@ -115,14 +144,28 @@ func (h *Handler) handleAcceptSelect(
 
 	h.deleteOrderMessage(ctx, orderID)
 
-	h.bot.Send(tgbotapi.NewMessage(
+	if _, err := h.bot.Send(tgbotapi.NewMessage(
 		chatID,
 		h.textDynamic.AssessorAcceptedOrder(orderID, order.GameNameAtPurchase, order.GameTypeNameAtPurchase),
-	))
+	)); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_expert_accept_notice", err)
+		logger.Log.Errorw("failed to send expert accept notice",
+			"order_id", orderID,
+			"expert_id", expertID,
+			"err", wrapped,
+		)
+	}
 
 	h.renderControlPanel(ctx, expert.TopicID, threadID, order)
 
-	h.bot.Send(tgbotapi.NewDeleteMessage(chatUserID, messageUserID))
+	if _, err := h.bot.Request(tgbotapi.NewDeleteMessage(chatUserID, messageUserID)); err != nil {
+		wrapped := wrapTelegramErr("telegram.delete_user_message", err)
+		logger.Log.Errorw("failed to delete user message",
+			"user_chat_id", chatUserID,
+			"message_id", messageUserID,
+			"err", wrapped,
+		)
+	}
 
 	message := tgbotapi.NewMessage(
 		chatUserID,
@@ -130,9 +173,22 @@ func (h *Handler) handleAcceptSelect(
 	)
 	message.ParseMode = "Markdown"
 
-	h.bot.Send(message)
+	if _, err := h.bot.Send(message); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_accept_to_user", err)
+		logger.Log.Errorw("failed to notify user about accepted order",
+			"order_id", orderID,
+			"user_chat_id", chatUserID,
+			"err", wrapped,
+		)
+	}
 
-	h.stateService.SetStateCommunication(ctx, chatUserID, &orderID)
+	if err := h.stateService.SetStateCommunication(ctx, chatUserID, &orderID); err != nil {
+		logger.Log.Errorw("failed to set communication state",
+			"order_id", orderID,
+			"user_chat_id", chatUserID,
+			"err", err,
+		)
+	}
 }
 
 func (h *Handler) createForumTopic(
@@ -147,18 +203,25 @@ func (h *Handler) createForumTopic(
 
 	resp, err := h.bot.MakeRequest("createForumTopic", params)
 	if err != nil {
+		wrapped := wrapTelegramErr("telegram.create_forum_topic", err)
 		logger.Log.Errorw("telegram createForumTopic request failed",
 			"topic_id", topicID,
-			"err", err,
+			"err", wrapped,
 		)
-		return 0, err
+		return 0, wrapped
 	}
 
 	if !resp.Ok {
+		wrapped := &apperr.TelegramError{
+			Op:      "telegram.create_forum_topic",
+			Code:    resp.ErrorCode,
+			Message: resp.Description,
+		}
 		logger.Log.Errorw("telegram createForumTopic api error",
 			"description", resp.Description,
+			"err", wrapped,
 		)
-		return 0, fmt.Errorf("telegram api error: %s", resp.Description)
+		return 0, wrapped
 	}
 
 	var topic struct {

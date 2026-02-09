@@ -24,7 +24,13 @@ func (h *Handler) handleShowMedia(
 		},
 	}
 
-	h.bot.Send(edit)
+	if _, err := h.bot.Send(edit); err != nil {
+		wrapped := wrapTelegramErr("telegram.remove_show_media_keyboard", err)
+		logger.Log.Errorw("failed to remove show media keyboard",
+			"chat_id", chatID,
+			"err", wrapped,
+		)
+	}
 
 	logger.Log.Infow("show media selected",
 		"chat_id", chatID,
@@ -43,12 +49,26 @@ func (h *Handler) handleShowMedia(
 
 	var payload SearchPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"show_media",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid show media callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume show media callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	if payload.ChatID != cb.From.ID {
 		return
@@ -56,7 +76,7 @@ func (h *Handler) handleShowMedia(
 
 	orderID := payload.OrderID
 
-	of, err := h.orderService.FindByID(context.Background(), orderID)
+	orderFull, err := h.orderService.FindByID(context.Background(), orderID)
 	if err != nil {
 		logger.Log.Warnw("order not found by id",
 			"chat_id", chatID,
@@ -66,72 +86,100 @@ func (h *Handler) handleShowMedia(
 
 	logger.Log.Infow("order found by id",
 		"chat_id", chatID,
-		"order_id", of.Order.ID,
+		"order_id", orderFull.Order.ID,
 	)
 
-	for _, m := range of.Messages {
-		if m.Media == nil {
+	for _, chatMessage := range orderFull.Messages {
+		if chatMessage.Media == nil {
 			continue
 		}
 
-		fileID, ok := m.Media["file_id"].(string)
+		fileID, ok := chatMessage.Media["file_id"].(string)
 		if !ok {
 			continue
 		}
 
-		switch m.MessageType {
+		switch chatMessage.MessageType {
 		case domain.MessagePhoto:
-			reply := tgbotapi.NewPhoto(chatID, tgbotapi.FileID(fileID))
-			reply.ReplyToMessageID = cb.Message.MessageID
-			reply.Caption = formatMediaMessage(m)
-			reply.ParseMode = tgbotapi.ModeHTML
-			h.bot.Send(reply)
+			photoReply := tgbotapi.NewPhoto(chatID, tgbotapi.FileID(fileID))
+			photoReply.ReplyToMessageID = cb.Message.MessageID
+			photoReply.Caption = h.formatMediaCaption(chatMessage)
+			photoReply.ParseMode = tgbotapi.ModeHTML
+			if _, err := h.bot.Send(photoReply); err != nil {
+				wrapped := wrapTelegramErr("telegram.send_media_photo", err)
+				logger.Log.Errorw("failed to send photo",
+					"chat_id", chatID,
+					"order_id", orderID,
+					"err", wrapped,
+				)
+			}
 		case domain.MessageVideo:
-			reply := tgbotapi.NewVideo(chatID, tgbotapi.FileID(fileID))
-			reply.ReplyToMessageID = cb.Message.MessageID
-			reply.Caption = formatMediaMessage(m)
-			reply.ParseMode = tgbotapi.ModeHTML
-			h.bot.Send(reply)
+			videoReply := tgbotapi.NewVideo(chatID, tgbotapi.FileID(fileID))
+			videoReply.ReplyToMessageID = cb.Message.MessageID
+			videoReply.Caption = h.formatMediaCaption(chatMessage)
+			videoReply.ParseMode = tgbotapi.ModeHTML
+			if _, err := h.bot.Send(videoReply); err != nil {
+				wrapped := wrapTelegramErr("telegram.send_media_video", err)
+				logger.Log.Errorw("failed to send video",
+					"chat_id", chatID,
+					"order_id", orderID,
+					"err", wrapped,
+				)
+			}
 		case domain.MessageDocument:
-			reply := tgbotapi.NewDocument(chatID, tgbotapi.FileID(fileID))
-			reply.ReplyToMessageID = cb.Message.MessageID
-			reply.Caption = formatMediaMessage(m)
-			reply.ParseMode = tgbotapi.ModeHTML
-			h.bot.Send(reply)
+			documentReply := tgbotapi.NewDocument(chatID, tgbotapi.FileID(fileID))
+			documentReply.ReplyToMessageID = cb.Message.MessageID
+			documentReply.Caption = h.formatMediaCaption(chatMessage)
+			documentReply.ParseMode = tgbotapi.ModeHTML
+			if _, err := h.bot.Send(documentReply); err != nil {
+				wrapped := wrapTelegramErr("telegram.send_media_document", err)
+				logger.Log.Errorw("failed to send document",
+					"chat_id", chatID,
+					"order_id", orderID,
+					"err", wrapped,
+				)
+			}
 		case domain.MessageVoice:
-			reply := tgbotapi.NewVoice(chatID, tgbotapi.FileID(fileID))
-			reply.ReplyToMessageID = cb.Message.MessageID
-			reply.Caption = formatMediaMessage(m)
-			reply.ParseMode = tgbotapi.ModeHTML
-			h.bot.Send(reply)
+			voiceReply := tgbotapi.NewVoice(chatID, tgbotapi.FileID(fileID))
+			voiceReply.ReplyToMessageID = cb.Message.MessageID
+			voiceReply.Caption = h.formatMediaCaption(chatMessage)
+			voiceReply.ParseMode = tgbotapi.ModeHTML
+			if _, err := h.bot.Send(voiceReply); err != nil {
+				wrapped := wrapTelegramErr("telegram.send_media_voice", err)
+				logger.Log.Errorw("failed to send voice",
+					"chat_id", chatID,
+					"order_id", orderID,
+					"err", wrapped,
+				)
+			}
 		}
 	}
 
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, "Медиа отправлены"))
+	h.answerCallback(cb, h.text.MediaSentToast)
 
 	logger.Log.Infow("media files sent",
 		"chat_id", chatID,
-		"order_id", of.Order.ID,
+		"order_id", orderFull.Order.ID,
 	)
 }
 
-func formatMediaMessage(m domain.ChatMessage) string {
+func (h *Handler) formatMediaCaption(chatMessage domain.ChatMessage) string {
 	var sender string
-	switch m.SenderRole {
+	switch chatMessage.SenderRole {
 	case domain.SenderUser:
-		sender = "👤 Пользователь"
+		sender = h.text.SenderUserLabel
 	case domain.SenderExpert:
-		sender = "🧑‍💼 Эксперт"
+		sender = h.text.SenderExpertLabel
 	default:
-		sender = "⚙️ Система"
+		sender = h.text.SenderSystemLabel
 	}
 
 	var b strings.Builder
 
 	b.WriteString(fmt.Sprintf(
-		"<b>%s</b> <i>%s</i>\n",
+		h.text.ChatMessageHeaderTemplate,
 		sender,
-		m.CreatedAt.Format("02.01 15:04"),
+		chatMessage.CreatedAt.Format("02.01 15:04"),
 	))
 
 	return b.String()

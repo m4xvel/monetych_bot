@@ -30,10 +30,11 @@ func (r *SupportRepo) Get(ctx context.Context) (*domain.Support, error) {
 		Scan(&s.ID, &s.ChatID, &s.ChatLink)
 
 	if err != nil {
+		wrapped := dbErr("support.get", err)
 		logger.Log.Errorw("failed to get support",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	return &s, nil

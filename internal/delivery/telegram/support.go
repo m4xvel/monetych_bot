@@ -14,17 +14,18 @@ func (h *Handler) handlerSupportCommand(
 ) {
 	chatID := msg.Chat.ID
 
-	support := h.supportService.GetSupport()
+	supportInfo := h.supportService.GetSupport()
 
 	message := tgbotapi.NewMessage(
 		chatID,
-		fmt.Sprintf("Служба поддержи: %s", support.ChatLink),
+		fmt.Sprintf(h.text.SupportContactTemplate, supportInfo.ChatLink),
 	)
 
 	if _, err := h.bot.Send(message); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_support_message", err)
 		logger.Log.Errorw("failed to send support message",
 			"chat_id", chatID,
-			"err", err,
+			"err", wrapped,
 		)
 		return
 	}

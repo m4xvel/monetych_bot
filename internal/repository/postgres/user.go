@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/m4xvel/monetych_bot/internal/apperr"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
@@ -25,10 +26,11 @@ func (r *UserRepo) Add(ctx context.Context, user domain.User) error {
 
 	tag, err := r.pool.Exec(ctx, q, user.ChatID, user.Name)
 	if err != nil {
+		wrapped := dbErr("user.add", err)
 		logger.Log.Errorw("failed to insert user",
-			"err", err,
+			"err", wrapped,
 		)
-		return ErrAdd
+		return wrapped
 	}
 
 	if tag.RowsAffected() == 0 {
@@ -51,10 +53,11 @@ func (r *UserRepo) UpdatePhoto(ctx context.Context, user domain.User) error {
 	`
 	_, err := r.pool.Exec(ctx, q, user.PhotoURL, user.ChatID)
 	if err != nil {
+		wrapped := dbErr("user.update_photo", err)
 		logger.Log.Errorw("failed to update user photo",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	return nil
@@ -73,14 +76,15 @@ func (r *UserRepo) UpdateVerified(
 
 	cmd, err := r.pool.Exec(ctx, q, isVerified, chatID)
 	if err != nil {
+		wrapped := dbErr("user.update_verified", err)
 		logger.Log.Errorw("failed to update user verification status",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return ErrNotFound
+		return dbErrKind("user.update_verified", apperr.KindNotFound, nil)
 	}
 
 	return nil
@@ -97,10 +101,11 @@ func (r *UserRepo) Get(ctx context.Context, user domain.User) (*domain.User, err
 		Scan(&u.ID, &u.ChatID, &u.Name, &u.IsVerified)
 
 	if err != nil {
+		wrapped := dbErr("user.get", err)
 		logger.Log.Errorw("failed to get user",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	return &u, nil
@@ -115,14 +120,15 @@ func (r *UserRepo) IncrementOrders(ctx context.Context, chatID int64) error {
 
 	cmd, err := r.pool.Exec(ctx, q, chatID)
 	if err != nil {
+		wrapped := dbErr("user.increment_orders", err)
 		logger.Log.Errorw("failed to increment user orders",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return ErrNotFound
+		return dbErrKind("user.increment_orders", apperr.KindNotFound, nil)
 	}
 
 	return nil

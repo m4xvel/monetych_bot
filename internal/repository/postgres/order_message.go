@@ -37,10 +37,11 @@ func (r *OrderMessageRepo) Save(ctx context.Context, orderMessage domain.OrderMe
 		orderMessage.MessageID,
 	)
 	if err != nil {
+		wrapped := dbErr("order_message.save", err)
 		logger.Log.Errorw("failed to save order message",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	return nil
@@ -62,10 +63,11 @@ func (r *OrderMessageRepo) Get(ctx context.Context, orderID int) ([]domain.Order
 
 	rows, err := r.pool.Query(ctx, q, orderID)
 	if err != nil {
+		wrapped := dbErr("order_message.get", err)
 		logger.Log.Errorw("failed to query order messages",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 	defer rows.Close()
 
@@ -82,20 +84,22 @@ func (r *OrderMessageRepo) Get(ctx context.Context, orderID int) ([]domain.Order
 			&om.CreatedAt,
 			&om.DeletedAt,
 		); err != nil {
+			wrapped := dbErr("order_message.scan", err)
 			logger.Log.Errorw("failed to scan order message row",
-				"err", err,
+				"err", wrapped,
 			)
-			return nil, err
+			return nil, wrapped
 		}
 
 		result = append(result, om)
 	}
 
 	if err := rows.Err(); err != nil {
+		wrapped := dbErr("order_message.rows", err)
 		logger.Log.Errorw("rows error while iterating order messages",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	return result, nil
@@ -116,10 +120,11 @@ func (r *OrderMessageRepo) Delete(ctx context.Context, orderID int) error {
 		orderID,
 	)
 	if err != nil {
+		wrapped := dbErr("order_message.delete", err)
 		logger.Log.Errorw("failed to mark order messages as deleted",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	return nil

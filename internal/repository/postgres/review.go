@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/m4xvel/monetych_bot/internal/apperr"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
@@ -29,14 +30,15 @@ func (r *ReviewRepo) Create(ctx context.Context,
 
 	cmd, err := r.pool.Exec(ctx, q, review.OrderID, review.Rating)
 	if err != nil {
+		wrapped := dbErr("review.create", err)
 		logger.Log.Errorw("failed to create review",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return err
+		return dbErrKind("review.create", apperr.KindConflict, nil)
 	}
 
 	return nil
@@ -65,14 +67,15 @@ func (r *ReviewRepo) Set(
 		status,
 	)
 	if err != nil {
+		wrapped := dbErr("review.set", err)
 		logger.Log.Errorw("failed to update review",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return err
+		return dbErrKind("review.set", apperr.KindConflict, nil)
 	}
 
 	return nil
@@ -97,14 +100,15 @@ func (r *ReviewRepo) Publish(
 		domain.ReviewPublished,
 	)
 	if err != nil {
+		wrapped := dbErr("review.publish", err)
 		logger.Log.Errorw("failed to publish review",
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return ErrNotFound
+		return dbErrKind("review.publish", apperr.KindNotFound, nil)
 	}
 
 	return nil

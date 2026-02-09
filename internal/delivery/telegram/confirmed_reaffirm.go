@@ -14,7 +14,7 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 ) {
 	chatID := cb.Message.Chat.ID
 	messageID := cb.Message.MessageID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("expert confirm order reaffirm initiated",
 		"chat_id", chatID,
@@ -34,22 +34,41 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 
 	var payload ConfirmedAndDeclinedOrderSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"confirmed_reaffirm",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid confirmed reaffirm callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume confirmed reaffirm callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	orderID := payload.OrderID
 	topicID := payload.TopicID
 	threadID := payload.ThreadID
 
-	h.callbackTokenService.DeleteByActionAndOrderID(
+	if err := h.callbackTokenService.DeleteByActionAndOrderID(
 		ctx,
 		"back",
 		orderID,
-	)
+	); err != nil {
+		logger.Log.Errorw("failed to delete back callbacks",
+			"order_id", orderID,
+			"err", err,
+		)
+	}
 
 	order, err := h.orderService.GetOrderByID(ctx, orderID)
 	if err != nil {
@@ -62,6 +81,14 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 	}
 
 	if err := h.orderService.SetExpertConfirmedStatus(ctx, orderID); err != nil {
+		if isOrderAlreadyProcessed(err) {
+			logger.Log.Infow("order already processed on expert confirm",
+				"chat_id", chatID,
+				"order_id", orderID,
+				"err", err,
+			)
+			return
+		}
 		logger.Log.Errorw("failed to confirm order by expert",
 			"chat_id", chatID,
 			"order_id", orderID,
@@ -78,20 +105,22 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 	msg := tgbotapi.NewMessage(topicID, h.text.YouConfirmedOrder)
 	msg.MessageThreadID = threadID
 	if _, err := h.bot.Send(msg); err != nil {
+		wrapped := wrapTelegramErr("telegram.send_expert_confirmed", err)
 		logger.Log.Errorw("failed to send expert confirmation message",
 			"chat_id", chatID,
 			"order_id", orderID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 
 	if _, err := h.bot.Request(
 		tgbotapi.NewDeleteTopicMessage(topicID, messageID, threadID),
 	); err != nil {
+		wrapped := wrapTelegramErr("telegram.delete_confirm_ui", err)
 		logger.Log.Errorw("failed to delete confirmation ui message",
 			"chat_id", chatID,
 			"order_id", orderID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 
@@ -120,10 +149,11 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 	)
 
 	if _, err := h.bot.Send(clientMsg); err != nil {
+		wrapped := wrapTelegramErr("telegram.notify_client_confirm", err)
 		logger.Log.Errorw("failed to notify client about order confirmation",
 			"order_id", orderID,
 			"user_chat_id", order.UserChatID,
-			"err", err,
+			"err", wrapped,
 		)
 	}
 }

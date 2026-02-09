@@ -3,8 +3,10 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/m4xvel/monetych_bot/internal/apperr"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 )
 
@@ -54,10 +56,16 @@ func (u *CallbackTokenService) Consume(
 	}
 
 	if err := u.repo.Consume(ctx, cb); err != nil {
+		if errors.Is(err, apperr.ErrNotFound) {
+			return apperr.Wrap(apperr.KindInvalid, "callback_token.consume", err)
+		}
 		return err
 	}
 
-	return json.Unmarshal(cb.Payload, dest)
+	if err := json.Unmarshal(cb.Payload, dest); err != nil {
+		return apperr.Wrap(apperr.KindInvalid, "callback_token.payload", err)
+	}
+	return nil
 }
 
 func (u *CallbackTokenService) DeleteByActionAndOrderID(

@@ -81,8 +81,9 @@ func (r *OrderChatMessagesRepo) Save(
 	)
 
 	if err != nil {
-		logger.Log.Errorw("insert chat message failed", "err", err)
-		return err
+		wrapped := dbErr("order_chat_messages.save", err)
+		logger.Log.Errorw("insert chat message failed", "err", wrapped)
+		return wrapped
 	}
 
 	if cmd.RowsAffected() == 0 {

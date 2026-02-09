@@ -13,7 +13,7 @@ func (h *Handler) handlerCancelSelect(
 	cb *tgbotapi.CallbackQuery,
 ) {
 	chatID := cb.Message.Chat.ID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("order cancel initiated",
 		"chat_id", chatID,
@@ -32,12 +32,26 @@ func (h *Handler) handlerCancelSelect(
 
 	var payload CancelOrderSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"cancel",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid cancel callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume cancel callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	if payload.ChatID != cb.From.ID {
 		return
@@ -45,11 +59,16 @@ func (h *Handler) handlerCancelSelect(
 
 	orderID := payload.OrderID
 
-	h.callbackTokenService.DeleteByActionAndOrderID(
+	if err := h.callbackTokenService.DeleteByActionAndOrderID(
 		ctx,
 		"accept",
 		orderID,
-	)
+	); err != nil {
+		logger.Log.Errorw("failed to delete accept callbacks",
+			"order_id", orderID,
+			"err", err,
+		)
+	}
 
 	logger.Log.Infow("deleting order messages before cancel",
 		"order_id", orderID,
@@ -57,6 +76,14 @@ func (h *Handler) handlerCancelSelect(
 	h.deleteOrderMessage(ctx, orderID)
 
 	if err := h.orderService.SetCancelStatus(ctx, orderID); err != nil {
+		if isOrderAlreadyProcessed(err) {
+			logger.Log.Infow("order already processed on cancel",
+				"order_id", orderID,
+				"chat_id", chatID,
+				"err", err,
+			)
+			return
+		}
 		logger.Log.Warnw("failed to cancel order",
 			"order_id", orderID,
 			"chat_id", chatID,
@@ -76,5 +103,12 @@ func (h *Handler) handlerCancelSelect(
 		h.text.YouHaveCancelledOrder,
 	)
 
-	h.bot.Request(editText)
+	if _, err := h.bot.Request(editText); err != nil {
+		wrapped := wrapTelegramErr("telegram.edit_cancel_message", err)
+		logger.Log.Errorw("failed to edit cancel message",
+			"order_id", orderID,
+			"chat_id", chatID,
+			"err", wrapped,
+		)
+	}
 }

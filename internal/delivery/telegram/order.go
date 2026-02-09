@@ -14,7 +14,7 @@ func (h *Handler) handleOrderSelect(
 ) {
 	chatID := cb.Message.Chat.ID
 	messageID := cb.Message.MessageID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("order creation initiated",
 		"chat_id", chatID,
@@ -33,12 +33,26 @@ func (h *Handler) handleOrderSelect(
 
 	var payload OrderSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"order",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid order callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume order callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	if payload.ChatID != cb.From.ID {
 		return
@@ -101,11 +115,17 @@ func (h *Handler) handleOrderSelect(
 			"game_type_id", gameTypeID,
 		)
 
-		h.bot.Send(tgbotapi.NewEditMessageText(
+		if _, err := h.bot.Send(tgbotapi.NewEditMessageText(
 			chatID,
 			messageID,
 			h.text.AlreadyActiveOrder,
-		))
+		)); err != nil {
+			wrapped := wrapTelegramErr("telegram.edit_already_active", err)
+			logger.Log.Errorw("failed to edit already active order message",
+				"chat_id", chatID,
+				"err", wrapped,
+			)
+		}
 		return
 	}
 
@@ -146,7 +166,16 @@ func (h *Handler) handleOrderSelect(
 	)
 	edit.ReplyMarkup = &markup
 
-	send, _ := h.bot.Send(edit)
+	send, err := h.bot.Send(edit)
+	if err != nil {
+		wrapped := wrapTelegramErr("telegram.edit_waiting_assessor", err)
+		logger.Log.Errorw("failed to edit waiting assessor message",
+			"chat_id", chatID,
+			"order_id", id,
+			"err", wrapped,
+		)
+		return
+	}
 
 	h.notifyExpertsAboutOrder(ctx, id, send.MessageID, chatID, g.Name, t.Name)
 }
@@ -188,8 +217,8 @@ func (h *Handler) notifyExpertsAboutOrder(
 			)
 		}
 
-		btn := tgbotapi.NewInlineKeyboardButtonData(
-			"Принять",
+		acceptButton := tgbotapi.NewInlineKeyboardButtonData(
+			h.text.AcceptOrderButtonText,
 			"accept:"+token,
 		)
 
@@ -199,15 +228,16 @@ func (h *Handler) notifyExpertsAboutOrder(
 		)
 
 		message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(btn),
+			tgbotapi.NewInlineKeyboardRow(acceptButton),
 		)
 
 		send, err := h.bot.Send(message)
 		if err != nil {
+			wrapped := wrapTelegramErr("telegram.notify_expert", err)
 			logger.Log.Errorw("failed to notify expert",
 				"order_id", orderID,
 				"expert_id", e.ID,
-				"err", err,
+				"err", wrapped,
 			)
 			continue
 		}

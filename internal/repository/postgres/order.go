@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/m4xvel/monetych_bot/internal/apperr"
 	"github.com/m4xvel/monetych_bot/internal/crypto"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
@@ -54,11 +56,12 @@ func (r *OrderRepo) Create(ctx context.Context, order domain.Order) (int, error)
 		order.GameTypeNameAtPurchase).Scan(&id)
 
 	if err != nil && err != pgx.ErrNoRows {
+		wrapped := dbErr("order.create", err)
 		logger.Log.Errorw("order repo: create failed",
 			"user_id", order.UserID,
-			"err", err,
+			"err", wrapped,
 		)
-		return 0, err
+		return 0, wrapped
 	}
 
 	return id, nil
@@ -80,16 +83,17 @@ func (r *OrderRepo) UpdateStatus(
 	cmd, err := r.pool.Exec(ctx, q, order.ID, order.Status, status)
 
 	if err != nil {
+		wrapped := dbErr("order.update_status", err)
 		logger.Log.Errorw("order repo: update status failed",
 			"order_id", order.ID,
 			"to_status", order.Status,
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return ErrOrderAlreadyProcessed
+		return dbErrCode("order.update_status", apperr.KindConflict, apperr.DBCodeOrderAlreadyProcessed, nil)
 	}
 
 	return nil
@@ -118,16 +122,17 @@ func (r *OrderRepo) SetActive(
 	)
 
 	if err != nil {
+		wrapped := dbErr("order.set_active", err)
 		logger.Log.Errorw("order repo: set active failed",
 			"order_id", order.ID,
 			"expert_id", order.ExpertID,
-			"err", err,
+			"err", wrapped,
 		)
-		return err
+		return wrapped
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return ErrOrderAlreadyProcessed
+		return dbErrCode("order.set_active", apperr.KindConflict, apperr.DBCodeOrderAlreadyProcessed, nil)
 	}
 
 	return nil
@@ -160,11 +165,12 @@ func (r *OrderRepo) Get(ctx context.Context, orderID int) (*domain.Order, error)
 		&o.UserChatID,
 		&o.TopicID,
 	); err != nil {
+		wrapped := dbErr("order.get", err)
 		logger.Log.Errorw("order repo: get failed",
 			"order_id", orderID,
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	return &o, nil
@@ -237,11 +243,15 @@ func (r *OrderRepo) FindByField(
 		&of.GameType.Name,
 	)
 
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
+			return nil, dbErrKind("order.find", apperr.KindNotFound, err)
+		}
+		wrapped := dbErr("order.find", err)
 		logger.Log.Errorw("order repo: find by token failed",
-			"err", err,
+			"err", wrapped,
 		)
-		return nil, err
+		return nil, wrapped
 	}
 
 	const userStateQ = `
@@ -260,8 +270,10 @@ func (r *OrderRepo) FindByField(
 	)
 
 	if err != nil && err != sql.ErrNoRows {
+		wrapped := dbErr("order.user_state", err)
 		logger.Log.Warnw("order repo: user state not found",
 			"user_id", of.User.ID,
+			"err", wrapped,
 		)
 	}
 
@@ -279,9 +291,10 @@ func (r *OrderRepo) FindByField(
 
 	rows, err := r.pool.Query(ctx, messagesQ, of.Order.ID)
 	if err != nil {
+		wrapped := dbErr("order.messages", err)
 		logger.Log.Errorw("order repo: failed to load messages",
 			"order_id", of.Order.ID,
-			"err", err,
+			"err", wrapped,
 		)
 		return &of, nil
 	}
@@ -301,9 +314,10 @@ func (r *OrderRepo) FindByField(
 			&mediaEnc,
 			&msg.CreatedAt,
 		); err != nil {
+			wrapped := dbErr("order.messages_scan", err)
 			logger.Log.Warnw("order repo: failed to scan message",
 				"order_id", of.Order.ID,
-				"err", err,
+				"err", wrapped,
 			)
 			continue
 		}

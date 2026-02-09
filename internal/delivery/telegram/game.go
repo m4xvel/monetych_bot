@@ -14,7 +14,7 @@ func (h *Handler) handleGameSelect(
 	cb *tgbotapi.CallbackQuery,
 ) {
 	chatID := cb.Message.Chat.ID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("game selected",
 		"chat_id", chatID,
@@ -33,12 +33,26 @@ func (h *Handler) handleGameSelect(
 
 	var payload GameSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		token,
 		"game",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid game callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume game callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	if payload.ChatID != cb.From.ID {
 		return
@@ -109,5 +123,11 @@ func (h *Handler) handleGameSelect(
 	markup := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	edit.ReplyMarkup = &markup
 
-	h.bot.Request(edit)
+	if _, err := h.bot.Request(edit); err != nil {
+		wrapped := wrapTelegramErr("telegram.edit_game_message", err)
+		logger.Log.Errorw("failed to edit game selection message",
+			"chat_id", chatID,
+			"err", wrapped,
+		)
+	}
 }

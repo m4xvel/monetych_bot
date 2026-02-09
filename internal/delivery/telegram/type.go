@@ -14,7 +14,7 @@ func (h *Handler) handleTypeSelect(
 	cb *tgbotapi.CallbackQuery,
 ) {
 	chatID := cb.Message.Chat.ID
-	h.bot.Request(tgbotapi.NewCallback(cb.ID, ""))
+	h.answerCallback(cb, "")
 
 	logger.Log.Infow("game type selected",
 		"chat_id", chatID,
@@ -33,12 +33,26 @@ func (h *Handler) handleTypeSelect(
 
 	var payload TypeSelectPayload
 
-	h.callbackTokenService.Consume(
+	if err := h.callbackTokenService.Consume(
 		ctx,
 		tokenCallback,
 		"type",
 		&payload,
-	)
+	); err != nil {
+		if isInvalidToken(err) {
+			logger.Log.Warnw("invalid type callback token",
+				"chat_id", chatID,
+				"data", cb.Data,
+				"err", err,
+			)
+			return
+		}
+		logger.Log.Errorw("failed to consume type callback token",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return
+	}
 
 	if payload.ChatID != cb.From.ID {
 		return
@@ -106,5 +120,11 @@ func (h *Handler) handleTypeSelect(
 
 	edit.ReplyMarkup = &markup
 
-	h.bot.Request(edit)
+	if _, err := h.bot.Request(edit); err != nil {
+		wrapped := wrapTelegramErr("telegram.edit_type_message", err)
+		logger.Log.Errorw("failed to edit type selection message",
+			"chat_id", chatID,
+			"err", wrapped,
+		)
+	}
 }
