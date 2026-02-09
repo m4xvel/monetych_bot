@@ -115,15 +115,6 @@ func (h *Handler) handleOrderSelect(
 		"chat_id", chatID,
 	)
 
-	message := tgbotapi.NewMessage(
-		chatID,
-		h.text.WaitingAssessor,
-	)
-
-	delete := tgbotapi.NewDeleteMessage(chatID, messageID)
-
-	h.bot.Send(delete)
-
 	token, err := h.callbackTokenService.Create(
 		ctx,
 		"cancel",
@@ -144,11 +135,18 @@ func (h *Handler) handleOrderSelect(
 		"cancel:"+token,
 	)
 
-	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+	markup := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(btn),
 	)
 
-	send, _ := h.bot.Send(message)
+	edit := tgbotapi.NewEditMessageText(
+		chatID,
+		messageID,
+		h.text.WaitingAssessor,
+	)
+	edit.ReplyMarkup = &markup
+
+	send, _ := h.bot.Send(edit)
 
 	h.notifyExpertsAboutOrder(ctx, id, send.MessageID, chatID, g.Name, t.Name)
 }

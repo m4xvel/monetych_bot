@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -54,11 +55,6 @@ func (h *Handler) handleGameSelect(
 		return
 	}
 
-	editText := tgbotapi.NewEditMessageText(
-		chatID, cb.Message.MessageID, h.textDynamic.YouHaveChosenGame(game.Name),
-	)
-	h.bot.Request(editText)
-
 	types, err := h.gameService.GetGameTypesByGameID(gameID)
 	if err != nil {
 		logger.Log.Errorw("failed to get game types",
@@ -92,10 +88,26 @@ func (h *Handler) handleGameSelect(
 			t.Name,
 			"type:"+token,
 		)
+
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
 	}
 
-	message := tgbotapi.NewMessage(chatID, h.text.ChooseType)
-	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
-	h.bot.Send(message)
+	text := fmt.Sprintf(
+		"%s\n\n%s",
+		h.textDynamic.YouHaveChosenGame(game.Name),
+		h.text.ChooseType,
+	)
+
+	edit := tgbotapi.NewEditMessageText(
+		chatID,
+		cb.Message.MessageID,
+		text,
+	)
+
+	edit.ParseMode = "markdown"
+
+	markup := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	edit.ReplyMarkup = &markup
+
+	h.bot.Request(edit)
 }

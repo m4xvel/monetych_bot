@@ -56,6 +56,11 @@ type ConfirmedAndDeclinedOrderSelectPayload struct {
 	ThreadID int64 `json:"thread_id"`
 }
 
+type VerificationSelectPayload struct {
+	OrderID    int   `json:"order_id"`
+	UserChatID int64 `json:"user_chat_id"`
+}
+
 type RateSelectPayload struct {
 	ChatID  int64 `json:"chat_id"`
 	Rate    int   `json:"rate"`
@@ -143,6 +148,8 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("confirmed_reaffirm:",
 		h.handleConfirmedReaffirmSelect,
 	)
+	h.router.RegisterCallback("verification:", h.handleVerificationSelect)
+	h.router.RegisterCallback("verify:", h.handleVerifySelect)
 	h.router.RegisterCallback("back:", h.handleBack)
 	h.router.RegisterCallback("accept_client:", h.handleAcceptClientSelect)
 	h.router.RegisterCallback("rate:", h.handleRateSelect)
@@ -165,6 +172,10 @@ func (h *Handler) Route(ctx context.Context, upd tgbotapi.Update) {
 		logger.Log.Warnw("update blocked by state guard")
 		return
 	}
+	if !h.startGuard(ctx, upd) {
+		logger.Log.Warnw("update blocked by start guard")
+		return
+	}
 	h.router.Route(ctx, upd)
 }
 
@@ -184,10 +195,16 @@ func (h *Handler) deleteOrderMessage(ctx context.Context, orderID int) {
 	)
 
 	for _, sent := range sentOrders {
-		h.bot.Request(tgbotapi.NewDeleteMessage(
+		if _, err := h.bot.Request(tgbotapi.NewDeleteMessage(
 			sent.ChatID,
 			sent.MessageID,
-		))
+		)); err != nil {
+			logger.Log.Errorw("failed to delete message",
+				"chat_id", sent.ChatID,
+				"message_id", sent.MessageID,
+				"err", err,
+			)
+		}
 	}
 
 	h.orderMessageService.MarkDeletedByOrder(ctx, orderID)
@@ -198,6 +215,8 @@ func (h *Handler) renderControlPanel(
 	topicID, threadID int64,
 	order *domain.Order) {
 
+	isVerified := h.getUserVerified(ctx, order.UserChatID)
+
 	tokenConfirmed, err := h.callbackTokenService.Create(
 		ctx,
 		"confirmed",
@@ -238,9 +257,47 @@ func (h *Handler) renderControlPanel(
 		"declined:"+tokenDeclined,
 	)
 
+	rows := []tgbotapi.InlineKeyboardButton{
+		btnAccept,
+	}
+
+	rowsDecline := []tgbotapi.InlineKeyboardButton{
+		btnDecline,
+	}
+
+	markupRows := [][]tgbotapi.InlineKeyboardButton{
+		rows,
+		rowsDecline,
+	}
+
+	if !isVerified {
+		tokenVerification, err := h.callbackTokenService.Create(
+			ctx,
+			"verification",
+			&VerificationSelectPayload{
+				OrderID:    order.ID,
+				UserChatID: order.UserChatID,
+			},
+		)
+		if err != nil {
+			logger.Log.Errorw("failed to create verification callback token",
+				"err", err,
+			)
+		}
+
+		btnVerification := tgbotapi.NewInlineKeyboardButtonData(
+			h.text.SendToVerificationText,
+			"verification:"+tokenVerification,
+		)
+
+		markupRows = append(
+			markupRows,
+			[]tgbotapi.InlineKeyboardButton{btnVerification},
+		)
+	}
+
 	markup := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(btnAccept),
-		tgbotapi.NewInlineKeyboardRow(btnDecline),
+		markupRows...,
 	)
 
 	msg := tgbotapi.NewMessage(
@@ -248,12 +305,34 @@ func (h *Handler) renderControlPanel(
 		h.textDynamic.ApplicationManagementText(
 			order.GameNameAtPurchase,
 			order.GameTypeNameAtPurchase,
+			isVerified,
 		),
 	)
 	msg.MessageThreadID = threadID
 	msg.ReplyMarkup = markup
 
-	h.bot.Send(msg)
+	sent, err := h.bot.Send(msg)
+	if err != nil {
+		logger.Log.Errorw("failed to send control panel message",
+			"order_id", order.ID,
+			"topic_id", topicID,
+			"err", err,
+		)
+		return
+	}
+
+	if err := h.orderMessageService.Save(
+		ctx,
+		order.ID,
+		sent.Chat.ID,
+		sent.MessageID,
+	); err != nil {
+		logger.Log.Errorw("failed to save control panel message",
+			"order_id", order.ID,
+			"topic_id", topicID,
+			"err", err,
+		)
+	}
 }
 
 func (h *Handler) renderEditControlPanel(
@@ -262,6 +341,8 @@ func (h *Handler) renderEditControlPanel(
 	topicID, threadID int64,
 	order *domain.Order) {
 
+	isVerified := h.getUserVerified(ctx, order.UserChatID)
+
 	tokenConfirmed, err := h.callbackTokenService.Create(
 		ctx,
 		"confirmed",
@@ -302,10 +383,35 @@ func (h *Handler) renderEditControlPanel(
 		"declined:"+tokenDeclined,
 	)
 
-	markup := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(btnAccept),
-		tgbotapi.NewInlineKeyboardRow(btnDecline),
-	)
+	rows := [][]tgbotapi.InlineKeyboardButton{
+		{btnAccept},
+		{btnDecline},
+	}
+
+	if !isVerified {
+		tokenVerification, err := h.callbackTokenService.Create(
+			ctx,
+			"verification",
+			&VerificationSelectPayload{
+				OrderID:    order.ID,
+				UserChatID: order.UserChatID,
+			},
+		)
+		if err != nil {
+			logger.Log.Errorw("failed to create verification callback token",
+				"err", err,
+			)
+		}
+
+		btnVerification := tgbotapi.NewInlineKeyboardButtonData(
+			h.text.SendToVerificationText,
+			"verification:"+tokenVerification,
+		)
+
+		rows = append(rows, []tgbotapi.InlineKeyboardButton{btnVerification})
+	}
+
+	markup := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 	editMessage := tgbotapi.NewEditMessageText(
 		topicID,
@@ -313,6 +419,7 @@ func (h *Handler) renderEditControlPanel(
 		h.textDynamic.ApplicationManagementText(
 			order.GameNameAtPurchase,
 			order.GameTypeNameAtPurchase,
+			isVerified,
 		),
 	)
 	editMessage.ReplyMarkup = &markup
@@ -470,6 +577,10 @@ func (h *Handler) stateGuard(
 			return true
 		}
 
+		if strings.HasPrefix(upd.CallbackQuery.Data, "verify:") {
+			return true
+		}
+
 		h.answerCallback(
 			upd.CallbackQuery,
 			"Эта кнопка недоступна во время общения с экспертом",
@@ -478,6 +589,66 @@ func (h *Handler) stateGuard(
 		logger.Log.Warnw("callback blocked during communication",
 			"user_chat_id", chatID,
 			"data", upd.CallbackQuery.Data,
+		)
+
+		return false
+	}
+
+	return true
+}
+
+func (h *Handler) startGuard(
+	ctx context.Context,
+	upd tgbotapi.Update,
+) bool {
+	chatID, ok := extractChatID(upd)
+	if !ok {
+		return true
+	}
+
+	experts, err := h.expertService.GetAllExperts()
+	if err != nil {
+		return true
+	}
+
+	isExpert := false
+	for _, e := range experts {
+		if chatID == e.TopicID {
+			isExpert = true
+			break
+		}
+	}
+
+	if isExpert {
+		return true
+	}
+
+	support := h.supportService.GetSupport()
+
+	if chatID == support.ChatID {
+		return true
+	}
+
+	if upd.Message != nil && upd.Message.IsCommand() &&
+		upd.Message.Command() == "start" {
+		return true
+	}
+
+	if upd.CallbackQuery != nil {
+		return true
+	}
+
+	accepted, _ := h.userPolicyAcceptancesService.IsAccepted(ctx, chatID)
+	if !accepted {
+		message := tgbotapi.NewMessage(
+			chatID,
+			"Чтобы продолжить работу с ботом, необходимо принять [Публичную оферту](https://google.com) и [Политику конфиденциальности](https://google.com), нажав «Соглашаюсь»",
+		)
+		message.ParseMode = "Markdown"
+		h.bot.Send(message)
+
+		logger.Log.Warnw("command is blocked, the user did not accept rules",
+			"user_chat_id", chatID,
 		)
 
 		return false
@@ -531,6 +702,49 @@ func extractChatID(upd tgbotapi.Update) (int64, bool) {
 
 	if upd.CallbackQuery != nil {
 		return upd.CallbackQuery.Message.Chat.ID, true
+	}
+
+	return 0, false
+}
+
+func (h *Handler) getUserVerified(
+	ctx context.Context,
+	userChatID int64,
+) bool {
+	user, err := h.userService.GetByChatID(ctx, userChatID)
+	if err != nil || user == nil {
+		logger.Log.Warnw("failed to get user verification status",
+			"chat_id", userChatID,
+			"err", err,
+		)
+		return false
+	}
+
+	return user.IsVerified
+}
+
+func (h *Handler) findControlPanelMessageID(
+	ctx context.Context,
+	orderID int,
+	topicID int64,
+) (int, bool) {
+	messages, err := h.orderMessageService.GetByOrder(ctx, orderID)
+	if err != nil {
+		logger.Log.Errorw("failed to get order messages for control panel",
+			"order_id", orderID,
+			"err", err,
+		)
+		return 0, false
+	}
+
+	for _, m := range messages {
+		if m.ChatID == topicID {
+			return m.MessageID, true
+		}
+	}
+
+	if len(messages) == 1 {
+		return messages[0].MessageID, true
 	}
 
 	return 0, false

@@ -91,3 +91,19 @@ func (s *UserService) GetByChatID(
 
 	return user, nil
 }
+
+func (s *UserService) SetVerified(
+	ctx context.Context,
+	chatID int64,
+	isVerified bool,
+) error {
+	if err := s.users.UpdateVerified(ctx, chatID, isVerified); err != nil {
+		logger.Log.Errorw("failed to update user verification status",
+			"chat_id", chatID,
+			"err", err,
+		)
+		return err
+	}
+
+	return nil
+}

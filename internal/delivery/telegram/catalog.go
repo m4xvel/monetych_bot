@@ -53,6 +53,7 @@ func (h *Handler) handlerCatalogCommand(
 	}
 
 	message := tgbotapi.NewMessage(chatID, h.text.ChooseGame)
+	message.ParseMode = "markdown"
 	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 	if _, err := h.bot.Send(message); err != nil {

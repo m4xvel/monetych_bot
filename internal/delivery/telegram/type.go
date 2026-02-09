@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -55,12 +56,14 @@ func (h *Handler) handleTypeSelect(
 		return
 	}
 
-	editText := tgbotapi.NewEditMessageText(
-		chatID,
-		cb.Message.MessageID,
-		h.textDynamic.YouHaveChosenType(t.Name),
-	)
-	h.bot.Request(editText)
+	game, err := h.gameService.GetGameByID(gameID)
+	if err != nil {
+		logger.Log.Warnw("game not found",
+			"chat_id", chatID,
+			"game_id", gameID,
+		)
+		return
+	}
 
 	token, err := h.callbackTokenService.Create(
 		ctx,
@@ -78,15 +81,30 @@ func (h *Handler) handleTypeSelect(
 		)
 	}
 
-	message := tgbotapi.NewMessage(chatID, h.text.ContactAppraiserText)
+	text := fmt.Sprintf(
+		"%s\n\n%s",
+		h.textDynamic.YouHaveChosenGameAndType(game.Name, t.Name),
+		h.text.ContactAppraiserText,
+	)
+
+	edit := tgbotapi.NewEditMessageText(
+		chatID,
+		cb.Message.MessageID,
+		text,
+	)
+
+	edit.ParseMode = "markdown"
+
 	btn := tgbotapi.NewInlineKeyboardButtonData(
 		h.text.ContactText,
 		"order:"+token,
 	)
 
-	message.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+	markup := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(btn),
 	)
 
-	h.bot.Send(message)
+	edit.ReplyMarkup = &markup
+
+	h.bot.Request(edit)
 }

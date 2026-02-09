@@ -82,11 +82,10 @@ func (h *Handler) handleStartCommand(
 	})
 
 	accepted, _ := h.userPolicyAcceptancesService.IsAccepted(ctx, chatID)
-
-	message := tgbotapi.NewMessage(chatID, h.textDynamic.HelloText())
-	message.ParseMode = "Markdown"
-	message.DisableWebPagePreview = true
 	if !accepted {
+		message := tgbotapi.NewMessage(chatID, h.textDynamic.HelloText())
+		message.ParseMode = "Markdown"
+		message.DisableWebPagePreview = true
 		token, err := h.callbackTokenService.Create(
 			ctx,
 			"accept_privacy",
@@ -107,14 +106,16 @@ func (h *Handler) handleStartCommand(
 				"accept_privacy:"+token,
 			)),
 		)
+
+		if _, err := h.bot.Send(message); err != nil {
+			logger.Log.Errorw("failed to send hello message",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
 	}
 
-	if _, err := h.bot.Send(message); err != nil {
-		logger.Log.Errorw("failed to send hello message",
-			"chat_id", chatID,
-			"err", err,
-		)
-	}
+	h.bot.Send(tgbotapi.NewMessage(chatID, h.textDynamic.HelloTextNotFirst()))
 
 	if accepted {
 		h.handlerCatalogCommand(ctx, msg)

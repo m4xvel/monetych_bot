@@ -60,15 +60,41 @@ func (r *UserRepo) UpdatePhoto(ctx context.Context, user domain.User) error {
 	return nil
 }
 
+func (r *UserRepo) UpdateVerified(
+	ctx context.Context,
+	chatID int64,
+	isVerified bool,
+) error {
+	const q = `
+	UPDATE users
+	SET is_verified = $1
+	WHERE chat_id = $2
+	`
+
+	cmd, err := r.pool.Exec(ctx, q, isVerified, chatID)
+	if err != nil {
+		logger.Log.Errorw("failed to update user verification status",
+			"err", err,
+		)
+		return err
+	}
+
+	if cmd.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
 func (r *UserRepo) Get(ctx context.Context, user domain.User) (*domain.User, error) {
 	const q = `
-	SELECT id, chat_id, name
+	SELECT id, chat_id, name, is_verified
 	FROM users
 	WHERE chat_id = $1
 	`
 	var u domain.User
 	err := r.pool.QueryRow(ctx, q, user.ChatID).
-		Scan(&u.ID, &u.ChatID, &u.Name)
+		Scan(&u.ID, &u.ChatID, &u.Name, &u.IsVerified)
 
 	if err != nil {
 		logger.Log.Errorw("failed to get user",
