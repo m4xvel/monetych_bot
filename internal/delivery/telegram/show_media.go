@@ -2,12 +2,20 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
+)
+
+const (
+	mediaBatchSize  = 10
+	mediaBatchDelay = 1 * time.Second
+	maxSendAttempts = 3
 )
 
 func (h *Handler) handleShowMedia(
@@ -89,6 +97,7 @@ func (h *Handler) handleShowMedia(
 		"order_id", orderFull.Order.ID,
 	)
 
+	sentCount := 0
 	for _, chatMessage := range orderFull.Messages {
 		if chatMessage.Media == nil {
 			continue
@@ -105,7 +114,7 @@ func (h *Handler) handleShowMedia(
 			photoReply.ReplyToMessageID = cb.Message.MessageID
 			photoReply.Caption = h.formatMediaCaption(chatMessage)
 			photoReply.ParseMode = tgbotapi.ModeHTML
-			if _, err := h.bot.Send(photoReply); err != nil {
+			if err := h.sendWithRetry("telegram.send_media_photo", chatID, orderID, photoReply); err != nil {
 				wrapped := wrapTelegramErr("telegram.send_media_photo", err)
 				logger.Log.Errorw("failed to send photo",
 					"chat_id", chatID,
@@ -118,7 +127,7 @@ func (h *Handler) handleShowMedia(
 			videoReply.ReplyToMessageID = cb.Message.MessageID
 			videoReply.Caption = h.formatMediaCaption(chatMessage)
 			videoReply.ParseMode = tgbotapi.ModeHTML
-			if _, err := h.bot.Send(videoReply); err != nil {
+			if err := h.sendWithRetry("telegram.send_media_video", chatID, orderID, videoReply); err != nil {
 				wrapped := wrapTelegramErr("telegram.send_media_video", err)
 				logger.Log.Errorw("failed to send video",
 					"chat_id", chatID,
@@ -134,7 +143,7 @@ func (h *Handler) handleShowMedia(
 				tgbotapi.FileID(fileID),
 			)
 			videoNoteReply.ReplyToMessageID = cb.Message.MessageID
-			if _, err := h.bot.Send(videoNoteReply); err != nil {
+			if err := h.sendWithRetry("telegram.send_media_video_note", chatID, orderID, videoNoteReply); err != nil {
 				wrapped := wrapTelegramErr("telegram.send_media_video_note", err)
 				logger.Log.Errorw("failed to send video note",
 					"chat_id", chatID,
@@ -147,7 +156,7 @@ func (h *Handler) handleShowMedia(
 			documentReply.ReplyToMessageID = cb.Message.MessageID
 			documentReply.Caption = h.formatMediaCaption(chatMessage)
 			documentReply.ParseMode = tgbotapi.ModeHTML
-			if _, err := h.bot.Send(documentReply); err != nil {
+			if err := h.sendWithRetry("telegram.send_media_document", chatID, orderID, documentReply); err != nil {
 				wrapped := wrapTelegramErr("telegram.send_media_document", err)
 				logger.Log.Errorw("failed to send document",
 					"chat_id", chatID,
@@ -160,7 +169,7 @@ func (h *Handler) handleShowMedia(
 			voiceReply.ReplyToMessageID = cb.Message.MessageID
 			voiceReply.Caption = h.formatMediaCaption(chatMessage)
 			voiceReply.ParseMode = tgbotapi.ModeHTML
-			if _, err := h.bot.Send(voiceReply); err != nil {
+			if err := h.sendWithRetry("telegram.send_media_voice", chatID, orderID, voiceReply); err != nil {
 				wrapped := wrapTelegramErr("telegram.send_media_voice", err)
 				logger.Log.Errorw("failed to send voice",
 					"chat_id", chatID,
@@ -168,6 +177,11 @@ func (h *Handler) handleShowMedia(
 					"err", wrapped,
 				)
 			}
+		}
+
+		sentCount++
+		if sentCount%mediaBatchSize == 0 {
+			time.Sleep(mediaBatchDelay)
 		}
 	}
 
@@ -195,6 +209,45 @@ func mediaInt(media map[string]any, key string) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func (h *Handler) sendWithRetry(
+	op string,
+	chatID int64,
+	orderID int,
+	msg tgbotapi.Chattable,
+) error {
+	var lastErr error
+
+	for attempt := 1; attempt <= maxSendAttempts; attempt++ {
+		if _, err := h.bot.Send(msg); err == nil {
+			return nil
+		} else {
+			lastErr = err
+			retryAfter, ok := retryAfterSeconds(err)
+			if !ok || attempt == maxSendAttempts {
+				return lastErr
+			}
+			logger.Log.Warnw("rate limited, retrying send",
+				"op", op,
+				"chat_id", chatID,
+				"order_id", orderID,
+				"retry_after", retryAfter,
+				"attempt", attempt,
+			)
+			time.Sleep(time.Duration(retryAfter) * time.Second)
+		}
+	}
+
+	return lastErr
+}
+
+func retryAfterSeconds(err error) (int, bool) {
+	var tgErr tgbotapi.Error
+	if errors.As(err, &tgErr) && tgErr.Code == 429 && tgErr.RetryAfter > 0 {
+		return tgErr.RetryAfter, true
+	}
+	return 0, false
 }
 
 func (h *Handler) formatMediaCaption(chatMessage domain.ChatMessage) string {

@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"html"
 	"strings"
+	"unicode/utf16"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/m4xvel/monetych_bot/internal/domain"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
+
+const maxTelegramMessageLen = 3800
 
 func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
 	chatID := msg.Chat.ID
@@ -70,50 +73,34 @@ func (h *Handler) SearchCommand(ctx context.Context, msg *tgbotapi.Message) {
 		}
 	}
 
-	formattedText := h.formatOrderFull(orderFull)
-
-	response := tgbotapi.NewMessage(msg.Chat.ID, formattedText)
-	response.ParseMode = tgbotapi.ModeHTML
-	response.ReplyToMessageID = msg.MessageID
-
-	if mediaCount > 0 {
-
-		showMediaToken, err := h.callbackTokenService.Create(
-			ctx,
-			"show_media",
-			&SearchPayload{
-				ChatID:  chatID,
-				OrderID: orderFull.Order.ID,
-			},
-		)
-		if err != nil {
-			logger.Log.Errorw("failed to create show media callback token",
-				"chat_id", chatID,
-				"err", err,
-			)
-		}
-
-		showMediaButton := tgbotapi.NewInlineKeyboardButtonData(
-			fmt.Sprintf(h.text.SearchShowMediaButtonTemplate, mediaCount),
-			"show_media:"+showMediaToken,
-		)
-
-		response.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(showMediaButton),
-		)
+	summary := h.formatOrderSummary(orderFull)
+	if err := h.sendSearchSummary(ctx, chatID, msg.MessageID, summary, mediaCount, orderFull.Order.ID); err != nil {
+		return
 	}
 
-	if _, err := h.bot.Send(response); err != nil {
-		wrapped := wrapTelegramErr("telegram.send_search_result", err)
-		logger.Log.Errorw("failed to send order search result",
-			"chat_id", chatID,
-			"order_id", orderFull.Order.ID,
-			"err", wrapped,
-		)
+	if len(orderFull.Messages) > 0 {
+		chatLines := make([]string, 0, len(orderFull.Messages))
+		for _, message := range orderFull.Messages {
+			chatLines = append(chatLines, h.formatChatMessage(message))
+		}
+
+		for _, chunk := range h.buildChatChunks(chatLines, maxTelegramMessageLen) {
+			response := tgbotapi.NewMessage(chatID, chunk)
+			response.ParseMode = tgbotapi.ModeHTML
+			if _, err := h.bot.Send(response); err != nil {
+				wrapped := wrapTelegramErr("telegram.send_search_result", err)
+				logger.Log.Errorw("failed to send order search result chunk",
+					"chat_id", chatID,
+					"order_id", orderFull.Order.ID,
+					"err", wrapped,
+				)
+				return
+			}
+		}
 	}
 }
 
-func (h *Handler) formatOrderFull(orderFull *domain.OrderFull) string {
+func (h *Handler) formatOrderSummary(orderFull *domain.OrderFull) string {
 	if orderFull == nil {
 		return h.text.SearchMissingOrderText
 	}
@@ -199,22 +186,6 @@ func (h *Handler) formatOrderFull(orderFull *domain.OrderFull) string {
 			orderFull.UserState.UpdatedAt.Format("02.01.2006 15:04"),
 		))
 	}
-
-	// --- CHAT ---
-	if len(orderFull.Messages) > 0 {
-		builder.WriteString(h.text.SearchChatHeader)
-
-		var chatBuilder strings.Builder
-
-		for _, message := range orderFull.Messages {
-			chatBuilder.WriteString(h.formatChatMessage(message))
-		}
-
-		if chatBuilder.Len() > 0 {
-			builder.WriteString(h.collapsibleQuoteHTML(chatBuilder.String()))
-		}
-	}
-
 	return builder.String()
 }
 
@@ -259,6 +230,61 @@ func (h *Handler) formatChatMessage(chatMessage domain.ChatMessage) string {
 
 	builder.WriteString("\n")
 	return builder.String()
+}
+
+func (h *Handler) sendSearchSummary(
+	ctx context.Context,
+	chatID int64,
+	replyTo int,
+	summary string,
+	mediaCount int,
+	orderID int,
+) error {
+	parts := splitByLineLimit(summary, maxTelegramMessageLen)
+
+	for i, part := range parts {
+		response := tgbotapi.NewMessage(chatID, part)
+		response.ParseMode = tgbotapi.ModeHTML
+		if i == 0 {
+			response.ReplyToMessageID = replyTo
+			if mediaCount > 0 {
+				showMediaToken, err := h.callbackTokenService.Create(
+					ctx,
+					"show_media",
+					&SearchPayload{
+						ChatID:  chatID,
+						OrderID: orderID,
+					},
+				)
+				if err != nil {
+					logger.Log.Errorw("failed to create show media callback token",
+						"chat_id", chatID,
+						"err", err,
+					)
+				} else {
+					showMediaButton := tgbotapi.NewInlineKeyboardButtonData(
+						fmt.Sprintf(h.text.SearchShowMediaButtonTemplate, mediaCount),
+						"show_media:"+showMediaToken,
+					)
+					response.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+						tgbotapi.NewInlineKeyboardRow(showMediaButton),
+					)
+				}
+			}
+		}
+
+		if _, err := h.bot.Send(response); err != nil {
+			wrapped := wrapTelegramErr("telegram.send_search_result", err)
+			logger.Log.Errorw("failed to send order search result",
+				"chat_id", chatID,
+				"order_id", orderID,
+				"err", wrapped,
+			)
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (h *Handler) formatOrderStatus(
@@ -348,4 +374,170 @@ func (h *Handler) collapsibleQuoteHTML(text string) string {
 		h.text.ChatQuoteBlockTemplate,
 		text,
 	)
+}
+
+func (h *Handler) buildChatChunks(
+	lines []string,
+	maxLen int,
+) []string {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	header := h.text.SearchChatHeader
+	wrapperOpen := "<blockquote expandable>\n"
+	wrapperClose := "\n</blockquote>"
+
+	headerLen := tgLen(header)
+	wrapperLen := tgLen(wrapperOpen) + tgLen(wrapperClose)
+
+	availableFirst := maxLen - headerLen - wrapperLen
+	if availableFirst < 1 {
+		availableFirst = maxLen
+	}
+
+	availableNext := maxLen - wrapperLen
+	if availableNext < 1 {
+		availableNext = maxLen
+	}
+
+	var chunks []string
+	var b strings.Builder
+	curLen := 0
+	isFirst := true
+	available := availableFirst
+
+	flush := func() {
+		if curLen == 0 {
+			return
+		}
+		prefix := ""
+		if isFirst {
+			prefix = header
+			isFirst = false
+		}
+		chunks = append(chunks, prefix+wrapperOpen+b.String()+wrapperClose)
+		b.Reset()
+		curLen = 0
+		available = availableNext
+	}
+
+	for _, line := range lines {
+		lineLen := tgLen(line)
+
+		if lineLen > available {
+			if curLen > 0 {
+				flush()
+			}
+
+			for _, part := range splitByTgLimit(line, available) {
+				if part == "" {
+					continue
+				}
+				if isFirst {
+					chunks = append(chunks, header+wrapperOpen+part+wrapperClose)
+					isFirst = false
+					available = availableNext
+					continue
+				}
+				chunks = append(chunks, wrapperOpen+part+wrapperClose)
+			}
+			continue
+		}
+
+		if curLen+lineLen > available {
+			flush()
+		}
+
+		b.WriteString(line)
+		curLen += lineLen
+	}
+
+	if curLen > 0 {
+		flush()
+	}
+
+	return chunks
+}
+
+func splitByLineLimit(text string, limit int) []string {
+	if tgLen(text) <= limit {
+		return []string{text}
+	}
+
+	lines := strings.SplitAfter(text, "\n")
+	return splitLinesByLimit(lines, limit)
+}
+
+func splitLinesByLimit(lines []string, limit int) []string {
+	var chunks []string
+	var b strings.Builder
+	curLen := 0
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		lineLen := tgLen(line)
+		if lineLen > limit {
+			if curLen > 0 {
+				chunks = append(chunks, b.String())
+				b.Reset()
+				curLen = 0
+			}
+			chunks = append(chunks, splitByTgLimit(line, limit)...)
+			continue
+		}
+
+		if curLen+lineLen > limit {
+			chunks = append(chunks, b.String())
+			b.Reset()
+			curLen = 0
+		}
+
+		b.WriteString(line)
+		curLen += lineLen
+	}
+
+	if curLen > 0 {
+		chunks = append(chunks, b.String())
+	}
+
+	return chunks
+}
+
+func splitByTgLimit(text string, limit int) []string {
+	if limit <= 0 {
+		return []string{text}
+	}
+
+	var parts []string
+	var b strings.Builder
+	count := 0
+
+	for _, r := range text {
+		rLen := 1
+		if r > 0xFFFF {
+			rLen = 2
+		}
+
+		if count+rLen > limit {
+			parts = append(parts, b.String())
+			b.Reset()
+			count = 0
+		}
+		b.WriteRune(r)
+		count += rLen
+	}
+
+	if b.Len() > 0 {
+		parts = append(parts, b.String())
+	}
+
+	return parts
+}
+
+func tgLen(text string) int {
+	return len(utf16.Encode([]rune(text)))
 }
