@@ -104,6 +104,8 @@ func NewHandler(
 	ocms *usecase.OrderChatMessageService,
 	cts *usecase.CallbackTokenService,
 	upa *usecase.UserPolicyAcceptancesService,
+	privacyPolicyURL string,
+	publicOfferURL string,
 ) *Handler {
 	h := &Handler{
 		bot:                          bot,
@@ -120,7 +122,7 @@ func NewHandler(
 		userPolicyAcceptancesService: upa,
 		router:                       NewRouter(),
 		feature:                      features.NewFeatures(),
-		text:                         utils.NewMessages(),
+		text:                         utils.NewMessages(privacyPolicyURL, publicOfferURL),
 		textDynamic:                  utils.NewDynamic(),
 	}
 

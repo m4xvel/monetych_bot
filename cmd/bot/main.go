@@ -120,6 +120,8 @@ func main() {
 		orderChatMessageService,
 		callbackTokenService,
 		userPolicyAcceptancesService,
+		cfg.PrivacyPolicyURL,
+		cfg.PublicOfferURL,
 	)
 
 	u := tgbotapi.NewUpdate(0)

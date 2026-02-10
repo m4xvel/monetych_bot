@@ -8,22 +8,26 @@ import (
 )
 
 type Config struct {
-	Env         string
-	BotToken    string
-	DatabaseURL string
-	KeyBase64   string
-	Debug       bool
+	Env               string
+	BotToken          string
+	DatabaseURL       string
+	KeyBase64         string
+	Debug             bool
+	PrivacyPolicyURL  string
+	PublicOfferURL    string
 }
 
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		Env:         getEnv("APP_ENV", "dev"),
-		BotToken:    os.Getenv("BOT_TOKEN"),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		KeyBase64:   os.Getenv("CHAT_CRYPTO_KEY"),
-		Debug:       os.Getenv("DEBUG") == "true",
+		Env:              getEnv("APP_ENV", "dev"),
+		BotToken:         os.Getenv("BOT_TOKEN"),
+		DatabaseURL:      os.Getenv("DATABASE_URL"),
+		KeyBase64:        os.Getenv("CHAT_CRYPTO_KEY"),
+		Debug:            os.Getenv("DEBUG") == "true",
+		PrivacyPolicyURL: os.Getenv("PRIVACY_POLICY_URL"),
+		PublicOfferURL:   os.Getenv("PUBLIC_OFFER_URL"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -44,6 +48,14 @@ func (c *Config) validate() error {
 
 	if c.KeyBase64 == "" {
 		return fmt.Errorf("CHAT_CRYPTO_KEY is not set")
+	}
+
+	if c.PrivacyPolicyURL == "" {
+		return fmt.Errorf("PRIVACY_POLICY_URL is not set")
+	}
+
+	if c.PublicOfferURL == "" {
+		return fmt.Errorf("PUBLIC_OFFER_URL is not set")
 	}
 
 	if c.Env != "dev" && c.Env != "prod" {

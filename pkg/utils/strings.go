@@ -96,7 +96,7 @@ type Messages struct {
 	MediaVoiceLabel                    string
 }
 
-func NewMessages() *Messages {
+func NewMessages(privacyPolicyURL, publicOfferURL string) *Messages {
 	return &Messages{
 		ChooseGame:             "*[Шаг 1/3]* Выбери игру:",
 		ChooseType:             "*[Шаг 2/3]* Выбери, что хочешь продать:",
@@ -134,7 +134,11 @@ func NewMessages() *Messages {
 		SupportContactTemplate:             "Служба поддержи: %s",
 		CommunicationBlockedCommandText:    "Вы уже общаетесь с экспертом.\nИспользуйте чат или дождитесь завершения заказа.",
 		CommunicationBlockedCallbackText:   "Эта кнопка недоступна во время общения с экспертом",
-		NeedAcceptRulesText:                "Чтобы продолжить работу с ботом, необходимо принять [Публичную оферту](https://google.com) и [Политику конфиденциальности](https://google.com), нажав «Соглашаюсь»",
+		NeedAcceptRulesText: fmt.Sprintf(
+			"Чтобы продолжить работу с ботом, необходимо принять [Публичную оферту](%s) и [Политику конфиденциальности](%s), нажав «Соглашаюсь»",
+			publicOfferURL,
+			privacyPolicyURL,
+		),
 		VerificationRequestSentToast:       "Отправлено пользователю",
 		VerificationRequestReceivedToast:   "Запрос получен",
 		MediaSentToast:                     "Медиа отправлены",
