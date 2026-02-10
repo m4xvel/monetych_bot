@@ -122,6 +122,8 @@ func (h *Handler) handleStartCommand(
 				"err", wrapped,
 			)
 		}
+
+		return
 	}
 
 	if _, err := h.bot.Send(tgbotapi.NewMessage(chatID, h.textDynamic.HelloTextNotFirst())); err != nil {
