@@ -126,6 +126,22 @@ func (h *Handler) handleShowMedia(
 					"err", wrapped,
 				)
 			}
+		case domain.MessageVideoNote:
+			length, _ := mediaInt(chatMessage.Media, "length")
+			videoNoteReply := tgbotapi.NewVideoNote(
+				chatID,
+				length,
+				tgbotapi.FileID(fileID),
+			)
+			videoNoteReply.ReplyToMessageID = cb.Message.MessageID
+			if _, err := h.bot.Send(videoNoteReply); err != nil {
+				wrapped := wrapTelegramErr("telegram.send_media_video_note", err)
+				logger.Log.Errorw("failed to send video note",
+					"chat_id", chatID,
+					"order_id", orderID,
+					"err", wrapped,
+				)
+			}
 		case domain.MessageDocument:
 			documentReply := tgbotapi.NewDocument(chatID, tgbotapi.FileID(fileID))
 			documentReply.ReplyToMessageID = cb.Message.MessageID
@@ -161,6 +177,24 @@ func (h *Handler) handleShowMedia(
 		"chat_id", chatID,
 		"order_id", orderFull.Order.ID,
 	)
+}
+
+func mediaInt(media map[string]any, key string) (int, bool) {
+	v, ok := media[key]
+	if !ok || v == nil {
+		return 0, false
+	}
+
+	switch value := v.(type) {
+	case int:
+		return value, true
+	case int64:
+		return int(value), true
+	case float64:
+		return int(value), true
+	default:
+		return 0, false
+	}
 }
 
 func (h *Handler) formatMediaCaption(chatMessage domain.ChatMessage) string {

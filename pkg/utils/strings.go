@@ -90,6 +90,7 @@ type Messages struct {
 	UserStateWritingReviewText         string
 	MediaPhotoLabel                    string
 	MediaVideoLabel                    string
+	MediaVideoNoteLabel                string
 	MediaDocumentWithNameTemplate      string
 	MediaDocumentLabel                 string
 	MediaVoiceLabel                    string
@@ -184,6 +185,7 @@ func NewMessages(privacyPolicyURL, publicOfferURL string) *Messages {
 		UserStateWritingReviewText:         "пишет отзыв",
 		MediaPhotoLabel:                    "🖼 <b>Фото</b>\n",
 		MediaVideoLabel:                    "🎥 <b>Видео</b>\n",
+		MediaVideoNoteLabel:                "📹 <b>Кружок</b>\n",
 		MediaDocumentWithNameTemplate:      "📎 <b>Документ</b> : %s\n",
 		MediaDocumentLabel:                 "📎 <b>Документ</b>\n",
 		MediaVoiceLabel:                    "🎤 <b>Голосовое сообщение</b>\n",

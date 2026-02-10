@@ -279,6 +279,14 @@ func extractMedia(
 			"mime_type":      msg.Video.MimeType,
 		}, domain.MessageVideo
 
+	case msg.VideoNote != nil:
+		return map[string]any{
+			"file_id":        msg.VideoNote.FileID,
+			"file_unique_id": msg.VideoNote.FileUniqueID,
+			"length":         msg.VideoNote.Length,
+			"duration":       msg.VideoNote.Duration,
+		}, domain.MessageVideoNote
+
 	case msg.Voice != nil:
 		return map[string]any{
 			"file_id":        msg.Voice.FileID,

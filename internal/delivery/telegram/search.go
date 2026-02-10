@@ -323,6 +323,9 @@ func (h *Handler) formatMedia(
 	case domain.MessageVideo:
 		return h.text.MediaVideoLabel
 
+	case domain.MessageVideoNote:
+		return h.text.MediaVideoNoteLabel
+
 	case domain.MessageDocument:
 		if name, ok := media["file_name"].(string); ok {
 			return fmt.Sprintf(h.text.MediaDocumentWithNameTemplate, name)

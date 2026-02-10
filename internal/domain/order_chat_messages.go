@@ -16,6 +16,7 @@ const (
 	MessageText     MessageType = "text"
 	MessagePhoto    MessageType = "photo"
 	MessageVideo    MessageType = "video"
+	MessageVideoNote MessageType = "video_note"
 	MessageDocument MessageType = "document"
 	MessageVoice    MessageType = "voice"
 	MessageOther    MessageType = "other"
