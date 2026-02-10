@@ -26,7 +26,6 @@ type Messages struct {
 	YouOrderCancelled      string
 	OrderConfirmed         string
 	YouConfirmedPayment    string
-	SupportText            string
 	StartMenuText          string
 	CatalogMenuText        string
 	ConfirmDeclineText     string
@@ -117,7 +116,6 @@ func NewMessages(privacyPolicyURL, publicOfferURL string) *Messages {
 		YouOrderCancelled:      "Эксперт отменил заявку 😕",
 		OrderConfirmed:         "Клиент подтвердил сделку ✔️",
 		YouConfirmedPayment:    "Ты подтвердил получение выплаты 🎉\nСпасибо, что выбрал наш сервис! 😊",
-		SupportText:            "Служба поддержки: @support",
 		StartMenuText:          "♻ Обновить меню",
 		CatalogMenuText:        "🎮 Открыть каталог",
 		ConfirmDeclineText:     "⚠️ Подтвердите действие\n\nВы действительно хотите отменить заказ?",
@@ -128,12 +126,12 @@ func NewMessages(privacyPolicyURL, publicOfferURL string) *Messages {
 		ChatClosedText:         "Чат закрыт! Оцените наш сервис от 1 до 5 ⭐",
 		WriteReviewText:        "Теперь напишите ваш отзыв ✍️",
 
-		AgreeButtonText:                    "Соглашаюсь",
-		BackButtonText:                     "⬅️ Вернуться назад",
-		AcceptOrderButtonText:              "Принять",
-		SupportContactTemplate:             "Служба поддержи: %s",
-		CommunicationBlockedCommandText:    "Вы уже общаетесь с экспертом.\nИспользуйте чат или дождитесь завершения заказа.",
-		CommunicationBlockedCallbackText:   "Эта кнопка недоступна во время общения с экспертом",
+		AgreeButtonText:                  "Соглашаюсь",
+		BackButtonText:                   "⬅️ Вернуться назад",
+		AcceptOrderButtonText:            "Принять",
+		SupportContactTemplate:           "Служба поддержи: %s",
+		CommunicationBlockedCommandText:  "Вы уже общаетесь с экспертом.\nИспользуйте чат или дождитесь завершения заказа.",
+		CommunicationBlockedCallbackText: "Эта кнопка недоступна во время общения с экспертом",
 		NeedAcceptRulesText: fmt.Sprintf(
 			"Чтобы продолжить работу с ботом, необходимо принять [Публичную оферту](%s) и [Политику конфиденциальности](%s), нажав «Соглашаюсь»",
 			publicOfferURL,

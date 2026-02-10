@@ -91,6 +91,8 @@ func (h *Handler) handleVerificationSelect(
 		)
 		return
 	}
+
+	h.removeVerificationButton(cb.Message)
 }
 
 func (h *Handler) handleVerifySelect(
@@ -230,4 +232,69 @@ func (h *Handler) handleVerifySelect(
 		*order.ThreadID,
 		order,
 	)
+}
+
+func (h *Handler) removeVerificationButton(
+	msg *tgbotapi.Message,
+) {
+	if msg == nil || msg.ReplyMarkup == nil {
+		return
+	}
+
+	markup, changed := stripVerificationButton(msg.ReplyMarkup)
+	if !changed {
+		return
+	}
+
+	edit := tgbotapi.EditMessageReplyMarkupConfig{
+		BaseEdit: tgbotapi.BaseEdit{
+			ChatID:      msg.Chat.ID,
+			MessageID:   msg.MessageID,
+			ReplyMarkup: markup,
+		},
+	}
+
+	if _, err := h.bot.Send(edit); err != nil {
+		wrapped := wrapTelegramErr("telegram.remove_verification_button", err)
+		logger.Log.Errorw("failed to remove verification button",
+			"chat_id", msg.Chat.ID,
+			"message_id", msg.MessageID,
+			"err", wrapped,
+		)
+	}
+}
+
+func stripVerificationButton(
+	markup *tgbotapi.InlineKeyboardMarkup,
+) (*tgbotapi.InlineKeyboardMarkup, bool) {
+	if markup == nil {
+		return nil, false
+	}
+
+	changed := false
+	filtered := make([][]tgbotapi.InlineKeyboardButton, 0, len(markup.InlineKeyboard))
+
+	for _, row := range markup.InlineKeyboard {
+		newRow := make([]tgbotapi.InlineKeyboardButton, 0, len(row))
+		for _, btn := range row {
+			if btn.CallbackData != nil && strings.HasPrefix(*btn.CallbackData, "verification:") {
+				changed = true
+				continue
+			}
+			newRow = append(newRow, btn)
+		}
+		if len(newRow) > 0 {
+			filtered = append(filtered, newRow)
+		}
+	}
+
+	if !changed {
+		return nil, false
+	}
+
+	if len(filtered) == 0 {
+		return nil, true
+	}
+
+	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: filtered}, true
 }
