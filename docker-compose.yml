@@ -2,9 +2,9 @@ services:
   bot-init:
     image: busybox
     restart: "no"
-    command: chown -R 65532:65532 /app/avatars
+    command: chown -R 65532:65532 /avatars
     volumes:
-      - ../shared/avatars:/app/avatars
+      - ../shared/avatars:/avatars
     networks:
       - backend
         
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     command: ["/app/bot"]
     volumes:
-      - ../shared/avatars:/app/avatars
+      - ../shared/avatars:/avatars
     networks:
       - backend
     logging:

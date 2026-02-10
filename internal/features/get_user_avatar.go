@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	AvatarDir        = "/app/avatars"
+	AvatarDir        = "/avatars"
 	MaxAvatarSize    = 5 << 20 // 5 MB
 	DefaultAvatarURL = AvatarDir + "/default.png"
 )

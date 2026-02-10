@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN mkdir -p /app/avatars && chmod 755 /app/avatars
+RUN mkdir -p /avatars && chmod 755 /avatars
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o bot ./cmd/bot
