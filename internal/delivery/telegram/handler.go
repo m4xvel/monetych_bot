@@ -85,6 +85,7 @@ type Handler struct {
 	reviewService                *usecase.ReviewService
 	callbackTokenService         *usecase.CallbackTokenService
 	userPolicyAcceptancesService *usecase.UserPolicyAcceptancesService
+	copyMessageQueue             *sendQueue
 	router                       *Router
 	feature                      *features.Features
 	text                         *utils.Messages
@@ -120,6 +121,7 @@ func NewHandler(
 		orderChatMessageService:      ocms,
 		callbackTokenService:         cts,
 		userPolicyAcceptancesService: upa,
+		copyMessageQueue:             newSendQueue(copyMessageQueueSize),
 		router:                       NewRouter(),
 		feature:                      features.NewFeatures(),
 		text:                         utils.NewMessages(privacyPolicyURL, publicOfferURL),

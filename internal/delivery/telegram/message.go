@@ -49,7 +49,7 @@ func (h *Handler) handleUserMessage(
 	switch state.State {
 
 	case domain.StateCommunication:
-		logger.Log.Infow("user message forwarded to expert",
+		logger.Log.Infow("user message queued to expert",
 			"chat_id", chatID,
 			"order_id", state.OrderID,
 		)
@@ -153,13 +153,36 @@ func (h *Handler) forwardToExpert(
 		"message_thread_id": int64PtrToStr(state.OrderThreadID),
 	}
 
-	if _, err := h.bot.MakeRequest("copyMessage", params); err != nil {
-		wrapped := wrapTelegramErr("telegram.copy_user_message", err)
-		logger.Log.Errorw("failed to forward user message to expert",
+	if h.copyMessageQueue == nil {
+		if err := retryOnRateLimit(
+			"telegram.copy_user_message",
+			func() error {
+				_, err := h.bot.MakeRequest("copyMessage", params)
+				return err
+			},
+			"chat_id", state.ExpertTopicID,
 			"order_id", state.OrderID,
-			"err", wrapped,
-		)
+		); err != nil {
+			wrapped := wrapTelegramErr("telegram.copy_user_message", err)
+			logger.Log.Errorw("failed to forward user message to expert",
+				"order_id", state.OrderID,
+				"err", wrapped,
+			)
+		}
+		return
 	}
+
+	h.copyMessageQueue.enqueue(sendJob{
+		op: "telegram.copy_user_message",
+		fn: func() error {
+			_, err := h.bot.MakeRequest("copyMessage", params)
+			return err
+		},
+		fields: []any{
+			"chat_id", state.ExpertTopicID,
+			"order_id", state.OrderID,
+		},
+	})
 }
 
 func (h *Handler) handleExpertMessage(
@@ -223,17 +246,39 @@ func (h *Handler) handleExpertMessage(
 		"message_id":   fmt.Sprint(msg.MessageID),
 	}
 
-	if _, err := h.bot.MakeRequest("copyMessage", params); err != nil {
-		wrapped := wrapTelegramErr("telegram.copy_expert_message", err)
-		logger.Log.Errorw("failed to forward expert message to user",
+	if h.copyMessageQueue == nil {
+		if err := retryOnRateLimit(
+			"telegram.copy_expert_message",
+			func() error {
+				_, err := h.bot.MakeRequest("copyMessage", params)
+				return err
+			},
+			"chat_id", state.UserChatID,
 			"order_id", state.OrderID,
-			"user_chat_id", state.UserChatID,
-			"err", wrapped,
-		)
-		return
+		); err != nil {
+			wrapped := wrapTelegramErr("telegram.copy_expert_message", err)
+			logger.Log.Errorw("failed to forward expert message to user",
+				"order_id", state.OrderID,
+				"user_chat_id", state.UserChatID,
+				"err", wrapped,
+			)
+			return
+		}
+	} else {
+		h.copyMessageQueue.enqueue(sendJob{
+			op: "telegram.copy_expert_message",
+			fn: func() error {
+				_, err := h.bot.MakeRequest("copyMessage", params)
+				return err
+			},
+			fields: []any{
+				"chat_id", state.UserChatID,
+				"order_id", state.OrderID,
+			},
+		})
 	}
 
-	logger.Log.Infow("expert message forwarded to user",
+	logger.Log.Infow("expert message queued to user",
 		"order_id", state.OrderID,
 	)
 }
