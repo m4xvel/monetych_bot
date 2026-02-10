@@ -168,28 +168,16 @@ func (h *Handler) handleVerifySelect(
 		)
 	}
 
-	edit := tgbotapi.EditMessageReplyMarkupConfig{
-		BaseEdit: tgbotapi.BaseEdit{
-			ChatID:      chatID,
-			MessageID:   cb.Message.MessageID,
-			ReplyMarkup: nil,
-		},
-	}
+	edit := tgbotapi.NewEditMessageText(
+		chatID,
+		cb.Message.MessageID,
+		h.text.SuccessfulVerify,
+	)
+	edit.ReplyMarkup = nil
 
 	if _, err := h.bot.Send(edit); err != nil {
-		wrapped := wrapTelegramErr("telegram.remove_verification_keyboard", err)
-		logger.Log.Errorw("failed to remove verification keyboard",
-			"chat_id", chatID,
-			"err", wrapped,
-		)
-	}
-
-	if _, err := h.bot.Send(tgbotapi.NewMessage(
-		chatID,
-		h.text.SuccessfulVerify,
-	)); err != nil {
-		wrapped := wrapTelegramErr("telegram.send_verify_success", err)
-		logger.Log.Errorw("failed to send verify success message",
+		wrapped := wrapTelegramErr("telegram.edit_verify_success", err)
+		logger.Log.Errorw("failed to edit verification message",
 			"chat_id", chatID,
 			"err", wrapped,
 		)
