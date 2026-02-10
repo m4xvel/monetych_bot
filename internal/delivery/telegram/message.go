@@ -87,6 +87,20 @@ func (h *Handler) handleUserMessage(
 		h.handlerCatalogCommand(ctx, msg)
 
 	case domain.StateWritingReview:
+		if state.ReviewID == nil {
+			logger.Log.Warnw("review id missing in writing review state",
+				"chat_id", chatID,
+				"state_order_id", state.OrderID,
+			)
+			if err := h.stateService.SetStateIdle(ctx, chatID); err != nil {
+				logger.Log.Errorw("failed to reset state to idle",
+					"chat_id", chatID,
+					"err", err,
+				)
+			}
+			return
+		}
+
 		var text string
 		switch {
 		case msg.Text != "":

@@ -552,12 +552,18 @@ func (h *Handler) stateGuard(
 	if err != nil {
 		return true
 	}
+	if state == nil {
+		logger.Log.Warnw("user state not found in state guard",
+			"chat_id", chatID,
+		)
+		return true
+	}
 
 	if state.State == domain.StateWritingReview {
 		if shouldAutoPublishReview(upd) {
 			logger.Log.Infow("auto publishing pending review",
-				"user_chat_id", *state.UserChatID,
-				"review_id", *state.ReviewID,
+				"user_chat_id", state.UserChatID,
+				"review_id", state.ReviewID,
 			)
 			h.publishPendingReview(ctx, state)
 		}

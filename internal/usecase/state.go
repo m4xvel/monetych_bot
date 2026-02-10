@@ -105,10 +105,12 @@ func (s *StateService) SetStateCommunication(
 func (s *StateService) SetStateWritingReview(
 	ctx context.Context,
 	chatID int64,
+	orderID int,
 ) error {
 	err := s.repo.Set(
 		ctx, domain.UserState{
-			State: domain.StateWritingReview,
+			State:   domain.StateWritingReview,
+			OrderID: &orderID,
 		},
 		chatID,
 	)

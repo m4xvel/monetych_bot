@@ -93,7 +93,7 @@ func (h *Handler) handleRateSelect(
 		"rate", rate,
 	)
 
-	if err := h.stateService.SetStateWritingReview(ctx, chatID); err != nil {
+	if err := h.stateService.SetStateWritingReview(ctx, chatID, orderID); err != nil {
 		logger.Log.Errorw("failed to set state writing review",
 			"chat_id", chatID,
 			"order_id", orderID,
