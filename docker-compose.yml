@@ -65,7 +65,7 @@ services:
       - TERM=linux
       - GF_PLUGINS_PREINSTALL=grafana-clock-panel,grafana-polystat-panel
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'
     volumes:
       - grafana_storage:/var/lib/grafana
     networks:
