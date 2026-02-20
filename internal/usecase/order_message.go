@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"time"
 
 	"github.com/m4xvel/monetych_bot/internal/domain"
 )
@@ -41,4 +42,11 @@ func (s *OrderMessageService) MarkDeletedByOrder(
 	orderID int,
 ) error {
 	return s.repo.Delete(ctx, orderID)
+}
+
+func (s *OrderMessageService) PurgeDeletedBefore(
+	ctx context.Context,
+	before time.Time,
+) (int64, error) {
+	return s.repo.PurgeDeletedBefore(ctx, before)
 }

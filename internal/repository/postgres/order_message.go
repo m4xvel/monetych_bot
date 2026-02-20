@@ -129,3 +129,26 @@ func (r *OrderMessageRepo) Delete(ctx context.Context, orderID int) error {
 
 	return nil
 }
+
+func (r *OrderMessageRepo) PurgeDeletedBefore(
+	ctx context.Context,
+	before time.Time,
+) (int64, error) {
+	const q = `
+		DELETE FROM order_messages
+		WHERE deleted_at IS NOT NULL
+		  AND deleted_at < $1;
+	`
+
+	tag, err := r.pool.Exec(ctx, q, before)
+	if err != nil {
+		wrapped := dbErr("order_message.purge_deleted_before", err)
+		logger.Log.Errorw("failed to purge deleted order messages",
+			"before", before,
+			"err", wrapped,
+		)
+		return 0, wrapped
+	}
+
+	return tag.RowsAffected(), nil
+}

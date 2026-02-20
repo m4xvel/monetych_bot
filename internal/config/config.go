@@ -3,31 +3,34 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Env               string
-	BotToken          string
-	DatabaseURL       string
-	KeyBase64         string
-	Debug             bool
-	PrivacyPolicyURL  string
-	PublicOfferURL    string
+	Env                   string
+	BotToken              string
+	DatabaseURL           string
+	KeyBase64             string
+	Debug                 bool
+	PrivacyPolicyURL      string
+	PublicOfferURL        string
+	OrderMsgRetentionDays int
 }
 
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		Env:              getEnv("APP_ENV", "dev"),
-		BotToken:         os.Getenv("BOT_TOKEN"),
-		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		KeyBase64:        os.Getenv("CHAT_CRYPTO_KEY"),
-		Debug:            os.Getenv("DEBUG") == "true",
-		PrivacyPolicyURL: os.Getenv("PRIVACY_POLICY_URL"),
-		PublicOfferURL:   os.Getenv("PUBLIC_OFFER_URL"),
+		Env:                   getEnv("APP_ENV", "dev"),
+		BotToken:              os.Getenv("BOT_TOKEN"),
+		DatabaseURL:           os.Getenv("DATABASE_URL"),
+		KeyBase64:             os.Getenv("CHAT_CRYPTO_KEY"),
+		Debug:                 os.Getenv("DEBUG") == "true",
+		PrivacyPolicyURL:      os.Getenv("PRIVACY_POLICY_URL"),
+		PublicOfferURL:        os.Getenv("PUBLIC_OFFER_URL"),
+		OrderMsgRetentionDays: getEnvInt("ORDER_MESSAGES_RETENTION_DAYS", 30),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -70,4 +73,18 @@ func getEnv(key, defaultValue string) string {
 		return v
 	}
 	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultValue
+	}
+
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return defaultValue
+	}
+
+	return n
 }

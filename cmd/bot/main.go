@@ -107,6 +107,12 @@ func main() {
 
 	logger.Log.Infow("caches initialized")
 
+	go runOrderMessagesCleanup(
+		ctx,
+		orderMessageService,
+		cfg.OrderMsgRetentionDays,
+	)
+
 	handler := telegram.NewHandler(
 		bot,
 		userService,
@@ -149,6 +155,56 @@ func main() {
 
 				handler.Route(ctx, update)
 			}()
+		}
+	}
+}
+
+func runOrderMessagesCleanup(
+	ctx context.Context,
+	service *usecase.OrderMessageService,
+	retentionDays int,
+) {
+	if retentionDays <= 0 {
+		logger.Log.Infow("order messages cleanup disabled",
+			"retention_days", retentionDays,
+		)
+		return
+	}
+
+	run := func() {
+		purgeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		before := time.Now().AddDate(0, 0, -retentionDays)
+		deletedRows, err := service.PurgeDeletedBefore(purgeCtx, before)
+		if err != nil {
+			logger.Log.Errorw("order messages cleanup failed",
+				"retention_days", retentionDays,
+				"before", before,
+				"err", err,
+			)
+			return
+		}
+
+		if deletedRows > 0 {
+			logger.Log.Infow("order messages cleaned",
+				"deleted_rows", deletedRows,
+				"retention_days", retentionDays,
+			)
+		}
+	}
+
+	run()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
 		}
 	}
 }

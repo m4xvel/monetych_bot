@@ -18,4 +18,5 @@ type OrderMessageRepository interface {
 	Save(ctx context.Context, orderMessage OrderMessage) error
 	Get(ctx context.Context, orderID int) ([]OrderMessage, error)
 	Delete(ctx context.Context, orderID int) error
+	PurgeDeletedBefore(ctx context.Context, before time.Time) (int64, error)
 }
