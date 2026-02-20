@@ -85,6 +85,7 @@ type Handler struct {
 	reviewService                *usecase.ReviewService
 	callbackTokenService         *usecase.CallbackTokenService
 	userPolicyAcceptancesService *usecase.UserPolicyAcceptancesService
+	verificationEnabled          bool
 	copyMessageQueue             *sendQueue
 	router                       *Router
 	feature                      *features.Features
@@ -105,6 +106,7 @@ func NewHandler(
 	ocms *usecase.OrderChatMessageService,
 	cts *usecase.CallbackTokenService,
 	upa *usecase.UserPolicyAcceptancesService,
+	verificationEnabled bool,
 	privacyPolicyURL string,
 	publicOfferURL string,
 ) *Handler {
@@ -121,6 +123,7 @@ func NewHandler(
 		orderChatMessageService:      ocms,
 		callbackTokenService:         cts,
 		userPolicyAcceptancesService: upa,
+		verificationEnabled:          verificationEnabled,
 		copyMessageQueue:             newSendQueue(copyMessageQueueSize),
 		router:                       NewRouter(),
 		feature:                      features.NewFeatures(),
@@ -152,8 +155,10 @@ func (h *Handler) registerRoutes() {
 	h.router.RegisterCallback("confirmed_reaffirm:",
 		h.handleConfirmedReaffirmSelect,
 	)
-	h.router.RegisterCallback("verification:", h.handleVerificationSelect)
-	h.router.RegisterCallback("verify:", h.handleVerifySelect)
+	if h.verificationEnabled {
+		h.router.RegisterCallback("verification:", h.handleVerificationSelect)
+		h.router.RegisterCallback("verify:", h.handleVerifySelect)
+	}
 	h.router.RegisterCallback("back:", h.handleBack)
 	h.router.RegisterCallback("accept_client:", h.handleAcceptClientSelect)
 	h.router.RegisterCallback("rate:", h.handleRateSelect)
@@ -295,7 +300,7 @@ func (h *Handler) renderControlPanel(
 		declineRow,
 	}
 
-	if !isVerified {
+	if h.verificationEnabled && !isVerified {
 		tokenVerification, err := h.callbackTokenService.Create(
 			ctx,
 			"verification",
@@ -455,7 +460,7 @@ func (h *Handler) renderEditControlPanel(
 		{btnDecline},
 	}
 
-	if !isVerified {
+	if h.verificationEnabled && !isVerified {
 		tokenVerification, err := h.callbackTokenService.Create(
 			ctx,
 			"verification",

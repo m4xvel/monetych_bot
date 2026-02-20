@@ -14,6 +14,7 @@ type Config struct {
 	DatabaseURL           string
 	KeyBase64             string
 	Debug                 bool
+	VerificationEnabled   bool
 	PrivacyPolicyURL      string
 	PublicOfferURL        string
 	OrderMsgRetentionDays int
@@ -28,6 +29,7 @@ func Load() (*Config, error) {
 		DatabaseURL:           os.Getenv("DATABASE_URL"),
 		KeyBase64:             os.Getenv("CHAT_CRYPTO_KEY"),
 		Debug:                 os.Getenv("DEBUG") == "true",
+		VerificationEnabled:   getEnvBool("ENABLE_VERIFICATION", true),
 		PrivacyPolicyURL:      os.Getenv("PRIVACY_POLICY_URL"),
 		PublicOfferURL:        os.Getenv("PUBLIC_OFFER_URL"),
 		OrderMsgRetentionDays: getEnvInt("ORDER_MESSAGES_RETENTION_DAYS", 30),
@@ -87,4 +89,20 @@ func getEnvInt(key string, defaultValue int) int {
 	}
 
 	return n
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultValue
+	}
+
+	switch v {
+	case "1", "true", "TRUE", "yes", "YES":
+		return true
+	case "0", "false", "FALSE", "no", "NO":
+		return false
+	default:
+		return defaultValue
+	}
 }

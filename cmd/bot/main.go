@@ -126,6 +126,7 @@ func main() {
 		orderChatMessageService,
 		callbackTokenService,
 		userPolicyAcceptancesService,
+		cfg.VerificationEnabled,
 		cfg.PrivacyPolicyURL,
 		cfg.PublicOfferURL,
 	)
