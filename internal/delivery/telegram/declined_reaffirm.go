@@ -111,6 +111,13 @@ func (h *Handler) handleDeclinedReaffirmSelect(
 			"err", wrapped,
 		)
 	}
+
+	if err := h.orderMessageService.MarkDeletedByOrder(ctx, orderID); err != nil {
+		logger.Log.Errorw("failed to mark order messages deleted after decline",
+			"order_id", orderID,
+			"err", err,
+		)
+	}
 	if _, err := h.bot.Send(tgbotapi.NewMessage(order.UserChatID, h.text.YouOrderCancelled)); err != nil {
 		wrapped := wrapTelegramErr("telegram.notify_user_declined", err)
 		logger.Log.Errorw("failed to notify user about declined order",

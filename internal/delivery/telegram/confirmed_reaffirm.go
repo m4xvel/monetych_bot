@@ -124,6 +124,13 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 		)
 	}
 
+	if err := h.orderMessageService.MarkDeletedByOrder(ctx, orderID); err != nil {
+		logger.Log.Errorw("failed to mark order messages deleted after expert confirmation",
+			"order_id", orderID,
+			"err", err,
+		)
+	}
+
 	token, err := h.callbackTokenService.Create(
 		ctx,
 		"accept_client",
