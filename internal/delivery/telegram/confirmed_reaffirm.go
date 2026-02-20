@@ -155,5 +155,15 @@ func (h *Handler) handleConfirmedReaffirmSelect(
 			"user_chat_id", order.UserChatID,
 			"err", wrapped,
 		)
+		if err := h.callbackTokenService.Delete(
+			ctx,
+			token,
+			"accept_client",
+		); err != nil {
+			logger.Log.Errorw("failed to cleanup accept client callback token",
+				"order_id", orderID,
+				"err", err,
+			)
+		}
 	}
 }

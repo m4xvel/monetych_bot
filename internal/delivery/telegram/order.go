@@ -174,6 +174,13 @@ func (h *Handler) handleOrderSelect(
 			"order_id", id,
 			"err", wrapped,
 		)
+		if err := h.callbackTokenService.Delete(ctx, token, "cancel"); err != nil {
+			logger.Log.Errorw("failed to cleanup cancel callback token",
+				"chat_id", chatID,
+				"order_id", id,
+				"err", err,
+			)
+		}
 		return
 	}
 
@@ -239,6 +246,13 @@ func (h *Handler) notifyExpertsAboutOrder(
 				"expert_id", e.ID,
 				"err", wrapped,
 			)
+			if err := h.callbackTokenService.Delete(ctx, token, "accept"); err != nil {
+				logger.Log.Errorw("failed to cleanup accept callback token",
+					"order_id", orderID,
+					"expert_id", e.ID,
+					"err", err,
+				)
+			}
 			continue
 		}
 

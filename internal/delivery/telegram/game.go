@@ -80,6 +80,7 @@ func (h *Handler) handleGameSelect(
 	}
 
 	var rows [][]tgbotapi.InlineKeyboardButton
+	createdTokens := make([]string, 0, len(types))
 	for _, t := range types {
 		token, err := h.callbackTokenService.Create(
 			ctx,
@@ -97,6 +98,7 @@ func (h *Handler) handleGameSelect(
 			)
 			continue
 		}
+		createdTokens = append(createdTokens, token)
 
 		btn := tgbotapi.NewInlineKeyboardButtonData(
 			t.Name,
@@ -129,5 +131,13 @@ func (h *Handler) handleGameSelect(
 			"chat_id", chatID,
 			"err", wrapped,
 		)
+		for _, token := range createdTokens {
+			if err := h.callbackTokenService.Delete(ctx, token, "type"); err != nil {
+				logger.Log.Errorw("failed to cleanup type callback token",
+					"chat_id", chatID,
+					"err", err,
+				)
+			}
+		}
 	}
 }

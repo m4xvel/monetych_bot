@@ -121,6 +121,16 @@ func (h *Handler) handleStartCommand(
 				"chat_id", chatID,
 				"err", wrapped,
 			)
+			if err := h.callbackTokenService.Delete(
+				ctx,
+				token,
+				"accept_privacy",
+			); err != nil {
+				logger.Log.Errorw("failed to cleanup accept privacy callback token",
+					"chat_id", chatID,
+					"err", err,
+				)
+			}
 		}
 
 		return

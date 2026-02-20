@@ -80,6 +80,17 @@ func (h *Handler) handleBack(
 		)
 	}
 
+	if err := h.callbackTokenService.DeleteByActionAndOrderID(
+		ctx,
+		"verification",
+		orderID,
+	); err != nil {
+		logger.Log.Errorw("failed to delete verification callbacks",
+			"order_id", orderID,
+			"err", err,
+		)
+	}
+
 	order, err := h.orderService.GetOrderByID(ctx, orderID)
 	if err != nil {
 		logger.Log.Errorw("failed to get order for back navigation",

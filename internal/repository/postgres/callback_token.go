@@ -79,6 +79,23 @@ func (r *CallbackTokenRepo) Consume(
 	return nil
 }
 
+func (r *CallbackTokenRepo) Delete(
+	ctx context.Context,
+	token string,
+	action string,
+) error {
+	const q = `
+		DELETE FROM callback_tokens
+		WHERE token = $1 AND action = $2
+	`
+
+	if _, err := r.pool.Exec(ctx, q, token, action); err != nil {
+		return dbErr("callback_token.delete", err)
+	}
+
+	return nil
+}
+
 func (r *CallbackTokenRepo) DeleteByActionAndOrderID(
 	ctx context.Context,
 	action string,

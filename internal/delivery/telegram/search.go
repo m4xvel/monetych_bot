@@ -241,6 +241,7 @@ func (h *Handler) sendSearchSummary(
 	orderID int,
 ) error {
 	parts := splitByLineLimit(summary, maxTelegramMessageLen)
+	var showMediaToken string
 
 	for i, part := range parts {
 		response := tgbotapi.NewMessage(chatID, part)
@@ -248,7 +249,7 @@ func (h *Handler) sendSearchSummary(
 		if i == 0 {
 			response.ReplyToMessageID = replyTo
 			if mediaCount > 0 {
-				showMediaToken, err := h.callbackTokenService.Create(
+				token, err := h.callbackTokenService.Create(
 					ctx,
 					"show_media",
 					&SearchPayload{
@@ -262,9 +263,10 @@ func (h *Handler) sendSearchSummary(
 						"err", err,
 					)
 				} else {
+					showMediaToken = token
 					showMediaButton := tgbotapi.NewInlineKeyboardButtonData(
 						fmt.Sprintf(h.text.SearchShowMediaButtonTemplate, mediaCount),
-						"show_media:"+showMediaToken,
+						"show_media:"+token,
 					)
 					response.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 						tgbotapi.NewInlineKeyboardRow(showMediaButton),
@@ -280,6 +282,19 @@ func (h *Handler) sendSearchSummary(
 				"order_id", orderID,
 				"err", wrapped,
 			)
+			if i == 0 && showMediaToken != "" {
+				if err := h.callbackTokenService.Delete(
+					ctx,
+					showMediaToken,
+					"show_media",
+				); err != nil {
+					logger.Log.Errorw("failed to cleanup show media callback token",
+						"chat_id", chatID,
+						"order_id", orderID,
+						"err", err,
+					)
+				}
+			}
 			return err
 		}
 	}
@@ -363,17 +378,6 @@ func (h *Handler) formatMedia(
 	}
 
 	return ""
-}
-
-func (h *Handler) collapsibleQuoteHTML(text string) string {
-	if text == "" {
-		return ""
-	}
-
-	return fmt.Sprintf(
-		h.text.ChatQuoteBlockTemplate,
-		text,
-	)
 }
 
 func (h *Handler) buildChatChunks(

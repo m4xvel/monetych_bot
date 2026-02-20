@@ -75,6 +75,16 @@ func (h *Handler) handleAcceptSelect(
 
 	if err := h.orderService.SetAcceptedStatus(ctx, orderID); err != nil {
 		if isOrderAlreadyProcessed(err) {
+			if err := h.callbackTokenService.DeleteByActionAndOrderID(
+				ctx,
+				"accept",
+				orderID,
+			); err != nil {
+				logger.Log.Errorw("failed to delete accept callbacks",
+					"order_id", orderID,
+					"err", err,
+				)
+			}
 			logger.Log.Infow("order already processed on accept",
 				"order_id", orderID,
 				"err", err,
@@ -86,6 +96,17 @@ func (h *Handler) handleAcceptSelect(
 			"err", err,
 		)
 		return
+	}
+
+	if err := h.callbackTokenService.DeleteByActionAndOrderID(
+		ctx,
+		"accept",
+		orderID,
+	); err != nil {
+		logger.Log.Errorw("failed to delete accept callbacks",
+			"order_id", orderID,
+			"err", err,
+		)
 	}
 
 	logger.Log.Infow("order accepted",

@@ -132,5 +132,21 @@ func (h *Handler) handleDeclinedSelect(
 			"topic_id", topicID,
 			"err", wrapped,
 		)
+		if err := h.callbackTokenService.Delete(
+			ctx,
+			tokenReaffirm,
+			"declined_reaffirm",
+		); err != nil {
+			logger.Log.Errorw("failed to cleanup declined reaffirm callback token",
+				"order_id", orderID,
+				"err", err,
+			)
+		}
+		if err := h.callbackTokenService.Delete(ctx, tokenBack, "back"); err != nil {
+			logger.Log.Errorw("failed to cleanup back callback token",
+				"order_id", orderID,
+				"err", err,
+			)
+		}
 	}
 }

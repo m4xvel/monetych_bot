@@ -27,6 +27,7 @@ func (h *Handler) handlerCatalogCommand(
 	}
 
 	var rows [][]tgbotapi.InlineKeyboardButton
+	createdTokens := make([]string, 0, len(games))
 	for _, g := range games {
 
 		token, err := h.callbackTokenService.Create(
@@ -44,6 +45,7 @@ func (h *Handler) handlerCatalogCommand(
 			)
 			continue
 		}
+		createdTokens = append(createdTokens, token)
 
 		btn := tgbotapi.NewInlineKeyboardButtonData(
 			g.Name,
@@ -62,6 +64,14 @@ func (h *Handler) handlerCatalogCommand(
 			"chat_id", chatID,
 			"err", wrapped,
 		)
+		for _, token := range createdTokens {
+			if err := h.callbackTokenService.Delete(ctx, token, "game"); err != nil {
+				logger.Log.Errorw("failed to cleanup game callback token",
+					"chat_id", chatID,
+					"err", err,
+				)
+			}
+		}
 		return
 	}
 

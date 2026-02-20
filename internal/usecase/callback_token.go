@@ -75,3 +75,11 @@ func (u *CallbackTokenService) DeleteByActionAndOrderID(
 ) error {
 	return u.repo.DeleteByActionAndOrderID(ctx, action, orderID)
 }
+
+func (u *CallbackTokenService) Delete(
+	ctx context.Context,
+	token string,
+	action string,
+) error {
+	return u.repo.Delete(ctx, token, action)
+}

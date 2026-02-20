@@ -221,6 +221,10 @@ func (h *Handler) renderControlPanel(
 	order *domain.Order) {
 
 	isVerified := h.getUserVerified(ctx, order.UserChatID)
+	createdTokens := make([]struct {
+		token  string
+		action string
+	}, 0, 3)
 
 	tokenConfirmed, err := h.callbackTokenService.Create(
 		ctx,
@@ -235,6 +239,14 @@ func (h *Handler) renderControlPanel(
 		logger.Log.Errorw("failed to create confirmed order callback token",
 			"err", err,
 		)
+	} else {
+		createdTokens = append(createdTokens, struct {
+			token  string
+			action string
+		}{
+			token:  tokenConfirmed,
+			action: "confirmed",
+		})
 	}
 
 	btnAccept := tgbotapi.NewInlineKeyboardButtonData(
@@ -255,6 +267,14 @@ func (h *Handler) renderControlPanel(
 		logger.Log.Errorw("failed to create declined order callback token",
 			"err", err,
 		)
+	} else {
+		createdTokens = append(createdTokens, struct {
+			token  string
+			action string
+		}{
+			token:  tokenDeclined,
+			action: "declined",
+		})
 	}
 
 	btnDecline := tgbotapi.NewInlineKeyboardButtonData(
@@ -288,6 +308,14 @@ func (h *Handler) renderControlPanel(
 			logger.Log.Errorw("failed to create verification callback token",
 				"err", err,
 			)
+		} else {
+			createdTokens = append(createdTokens, struct {
+				token  string
+				action string
+			}{
+				token:  tokenVerification,
+				action: "verification",
+			})
 		}
 
 		btnVerification := tgbotapi.NewInlineKeyboardButtonData(
@@ -324,6 +352,19 @@ func (h *Handler) renderControlPanel(
 			"topic_id", topicID,
 			"err", wrapped,
 		)
+		for _, item := range createdTokens {
+			if err := h.callbackTokenService.Delete(
+				ctx,
+				item.token,
+				item.action,
+			); err != nil {
+				logger.Log.Errorw("failed to cleanup control panel callback token",
+					"order_id", order.ID,
+					"token_action", item.action,
+					"err", err,
+				)
+			}
+		}
 		return
 	}
 
@@ -348,6 +389,10 @@ func (h *Handler) renderEditControlPanel(
 	order *domain.Order) {
 
 	isVerified := h.getUserVerified(ctx, order.UserChatID)
+	createdTokens := make([]struct {
+		token  string
+		action string
+	}, 0, 3)
 
 	tokenConfirmed, err := h.callbackTokenService.Create(
 		ctx,
@@ -362,6 +407,14 @@ func (h *Handler) renderEditControlPanel(
 		logger.Log.Errorw("failed to create confirmed order callback token",
 			"err", err,
 		)
+	} else {
+		createdTokens = append(createdTokens, struct {
+			token  string
+			action string
+		}{
+			token:  tokenConfirmed,
+			action: "confirmed",
+		})
 	}
 
 	btnAccept := tgbotapi.NewInlineKeyboardButtonData(
@@ -382,6 +435,14 @@ func (h *Handler) renderEditControlPanel(
 		logger.Log.Errorw("failed to create declined order callback token",
 			"err", err,
 		)
+	} else {
+		createdTokens = append(createdTokens, struct {
+			token  string
+			action string
+		}{
+			token:  tokenDeclined,
+			action: "declined",
+		})
 	}
 
 	btnDecline := tgbotapi.NewInlineKeyboardButtonData(
@@ -407,6 +468,14 @@ func (h *Handler) renderEditControlPanel(
 			logger.Log.Errorw("failed to create verification callback token",
 				"err", err,
 			)
+		} else {
+			createdTokens = append(createdTokens, struct {
+				token  string
+				action string
+			}{
+				token:  tokenVerification,
+				action: "verification",
+			})
 		}
 
 		btnVerification := tgbotapi.NewInlineKeyboardButtonData(
@@ -437,6 +506,19 @@ func (h *Handler) renderEditControlPanel(
 			"message_id", messageID,
 			"err", wrapped,
 		)
+		for _, item := range createdTokens {
+			if err := h.callbackTokenService.Delete(
+				ctx,
+				item.token,
+				item.action,
+			); err != nil {
+				logger.Log.Errorw("failed to cleanup edit control panel callback token",
+					"order_id", order.ID,
+					"token_action", item.action,
+					"err", err,
+				)
+			}
+		}
 	}
 }
 

@@ -132,6 +132,22 @@ func (h *Handler) handleConfirmedSelect(
 			"topic_id", topicID,
 			"err", wrapped,
 		)
+		if err := h.callbackTokenService.Delete(
+			ctx,
+			tokenReaffirm,
+			"confirmed_reaffirm",
+		); err != nil {
+			logger.Log.Errorw("failed to cleanup confirmed reaffirm callback token",
+				"order_id", orderID,
+				"err", err,
+			)
+		}
+		if err := h.callbackTokenService.Delete(ctx, tokenBack, "back"); err != nil {
+			logger.Log.Errorw("failed to cleanup back callback token",
+				"order_id", orderID,
+				"err", err,
+			)
+		}
 		return
 	}
 }

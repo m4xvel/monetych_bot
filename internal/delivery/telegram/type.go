@@ -126,5 +126,11 @@ func (h *Handler) handleTypeSelect(
 			"chat_id", chatID,
 			"err", wrapped,
 		)
+		if err := h.callbackTokenService.Delete(ctx, token, "order"); err != nil {
+			logger.Log.Errorw("failed to cleanup order callback token",
+				"chat_id", chatID,
+				"err", err,
+			)
+		}
 	}
 }

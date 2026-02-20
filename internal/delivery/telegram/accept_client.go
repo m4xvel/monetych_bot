@@ -120,6 +120,7 @@ func (h *Handler) handleAcceptClientSelect(
 	}
 
 	buttons := make([]tgbotapi.InlineKeyboardButton, 0, 5)
+	rateTokens := make([]string, 0, 5)
 
 	for i := 1; i <= 5; i++ {
 		token, err := h.callbackTokenService.Create(
@@ -134,6 +135,7 @@ func (h *Handler) handleAcceptClientSelect(
 		if err != nil {
 			continue
 		}
+		rateTokens = append(rateTokens, token)
 
 		buttons = append(buttons,
 			tgbotapi.NewInlineKeyboardButtonData(
@@ -155,6 +157,15 @@ func (h *Handler) handleAcceptClientSelect(
 			"order_id", orderID,
 			"err", wrapped,
 		)
+		for _, token := range rateTokens {
+			if err := h.callbackTokenService.Delete(ctx, token, "rate"); err != nil {
+				logger.Log.Errorw("failed to cleanup rate callback token",
+					"chat_id", chatID,
+					"order_id", orderID,
+					"err", err,
+				)
+			}
+		}
 	}
 
 	if err := h.stateService.SetStateIdle(ctx, chatID); err != nil {

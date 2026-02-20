@@ -89,6 +89,17 @@ func (h *Handler) handleVerificationSelect(
 			"order_id", payload.OrderID,
 			"err", wrapped,
 		)
+		if err := h.callbackTokenService.Delete(
+			ctx,
+			tokenVerify,
+			"verify",
+		); err != nil {
+			logger.Log.Errorw("failed to cleanup verify callback token",
+				"chat_id", payload.UserChatID,
+				"order_id", payload.OrderID,
+				"err", err,
+			)
+		}
 		return
 	}
 
