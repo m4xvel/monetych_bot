@@ -4,7 +4,10 @@ import (
 	"fmt"
 )
 
-type Dynamic struct{}
+type Dynamic struct {
+	privacyPolicyURL string
+	publicOfferURL   string
+}
 
 type Messages struct {
 	ChooseGame             string
@@ -192,8 +195,11 @@ func NewMessages(privacyPolicyURL, publicOfferURL string) *Messages {
 	}
 }
 
-func NewDynamic() *Dynamic {
-	return &Dynamic{}
+func NewDynamic(privacyPolicyURL, publicOfferURL string) *Dynamic {
+	return &Dynamic{
+		privacyPolicyURL: privacyPolicyURL,
+		publicOfferURL:   publicOfferURL,
+	}
 }
 
 func (d *Dynamic) YouHaveChosenGame(gameName string) string {
@@ -245,10 +251,12 @@ func (d *Dynamic) ApplicationManagementText(
 }
 
 func (d *Dynamic) HelloText() string {
-	return fmt.Sprint(
-		"👋Привет! Я Скупыч - бот, который превратит твой игровой опыт в реальные деньги💰\n\n",
-		"Моя задача - сделать процесс понятным и безопасным!\n\n",
-		"📑 Нажимая кнопку «Согласиться», ты подтверждаешь согласие на обработку персональных данных в соответствии с [Политикой конфиденциальности](https://google.com) и принимаешь условия [Публичной оферты](https://google.com).",
+	return fmt.Sprintf(
+		"👋Привет! Я Скупыч - бот, который превратит твой игровой опыт в реальные деньги💰\n\n"+
+			"Моя задача - сделать процесс понятным и безопасным!\n\n"+
+			"📑 Нажимая кнопку «Согласиться», ты подтверждаешь согласие на обработку персональных данных в соответствии с [Политикой конфиденциальности](%s) и принимаешь условия [Публичной оферты](%s).",
+		d.privacyPolicyURL,
+		d.publicOfferURL,
 	)
 }
 

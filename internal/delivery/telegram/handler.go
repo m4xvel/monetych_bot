@@ -128,7 +128,7 @@ func NewHandler(
 		router:                       NewRouter(),
 		feature:                      features.NewFeatures(),
 		text:                         utils.NewMessages(privacyPolicyURL, publicOfferURL),
-		textDynamic:                  utils.NewDynamic(),
+		textDynamic:                  utils.NewDynamic(privacyPolicyURL, publicOfferURL),
 	}
 
 	h.registerRoutes()
