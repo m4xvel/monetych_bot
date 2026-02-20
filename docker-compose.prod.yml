@@ -1,0 +1,29 @@
+services:
+  bot:
+    environment:
+      - APP_ENV=prod
+      - TELEGRAM_WEBHOOK_LISTEN_ADDR=:8080
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    environment:
+      - CADDY_DOMAIN=${CADDY_DOMAIN}
+    depends_on:
+      - bot
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:

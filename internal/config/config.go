@@ -18,6 +18,10 @@ type Config struct {
 	PrivacyPolicyURL      string
 	PublicOfferURL        string
 	OrderMsgRetentionDays int
+	WebhookEnabled        bool
+	WebhookURL            string
+	WebhookListenAddr     string
+	WebhookDropPending    bool
 }
 
 func Load() (*Config, error) {
@@ -33,6 +37,10 @@ func Load() (*Config, error) {
 		PrivacyPolicyURL:      os.Getenv("PRIVACY_POLICY_URL"),
 		PublicOfferURL:        os.Getenv("PUBLIC_OFFER_URL"),
 		OrderMsgRetentionDays: getEnvInt("ORDER_MESSAGES_RETENTION_DAYS", 30),
+		WebhookEnabled:        getEnvBool("TELEGRAM_WEBHOOK_ENABLED", getEnv("APP_ENV", "dev") == "prod"),
+		WebhookURL:            os.Getenv("TELEGRAM_WEBHOOK_URL"),
+		WebhookListenAddr:     getEnv("TELEGRAM_WEBHOOK_LISTEN_ADDR", ":8080"),
+		WebhookDropPending:    getEnvBool("TELEGRAM_WEBHOOK_DROP_PENDING_UPDATES", false),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -65,6 +73,10 @@ func (c *Config) validate() error {
 
 	if c.Env != "dev" && c.Env != "prod" {
 		return fmt.Errorf("invalid APP_ENV: %s", c.Env)
+	}
+
+	if c.WebhookEnabled && c.WebhookURL == "" {
+		return fmt.Errorf("TELEGRAM_WEBHOOK_URL is not set while TELEGRAM_WEBHOOK_ENABLED=true")
 	}
 
 	return nil
