@@ -95,7 +95,11 @@ func main() {
 	reviewService := usecase.NewReviewService(reviewRepo)
 	callbackTokenService := usecase.NewCallbackTokenService(callbackTokenRepo)
 	userPolicyAcceptancesService := usecase.
-		NewUserPolicyAcceptancesService(userPolicyAcceptancesRepo)
+		NewUserPolicyAcceptancesService(
+			userPolicyAcceptancesRepo,
+			cfg.PrivacyPolicyTitle,
+			cfg.PublicOfferTitle,
+		)
 
 	if err := gameService.InitCache(ctx); err != nil {
 		logger.Log.Fatalw("failed to init game cache", "err", err)

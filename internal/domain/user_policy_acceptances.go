@@ -13,6 +13,6 @@ type UserPolicyAcceptances struct {
 }
 
 type UserPolicyAcceptancesRepository interface {
-	Set(ctx context.Context, chatID int64, version string) error
-	IsUserAccepted(ctx context.Context, chatID int64, version string) (bool, error)
+	Set(ctx context.Context, chatID int64, titles []string) error
+	IsUserAccepted(ctx context.Context, chatID int64, titles []string) (bool, error)
 }

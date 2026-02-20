@@ -17,6 +17,8 @@ type Config struct {
 	VerificationEnabled   bool
 	PrivacyPolicyURL      string
 	PublicOfferURL        string
+	PrivacyPolicyTitle    string
+	PublicOfferTitle      string
 	OrderMsgRetentionDays int
 	WebhookEnabled        bool
 	WebhookURL            string
@@ -36,6 +38,8 @@ func Load() (*Config, error) {
 		VerificationEnabled:   getEnvBool("ENABLE_VERIFICATION", true),
 		PrivacyPolicyURL:      os.Getenv("PRIVACY_POLICY_URL"),
 		PublicOfferURL:        os.Getenv("PUBLIC_OFFER_URL"),
+		PrivacyPolicyTitle:    getEnv("PRIVACY_POLICY_TITLE", "Политика конфиденциальности"),
+		PublicOfferTitle:      getEnv("PUBLIC_OFFER_TITLE", "Публичная оферта"),
 		OrderMsgRetentionDays: getEnvInt("ORDER_MESSAGES_RETENTION_DAYS", 30),
 		WebhookEnabled:        getEnvBool("TELEGRAM_WEBHOOK_ENABLED", getEnv("APP_ENV", "dev") == "prod"),
 		WebhookURL:            os.Getenv("TELEGRAM_WEBHOOK_URL"),
@@ -69,6 +73,14 @@ func (c *Config) validate() error {
 
 	if c.PublicOfferURL == "" {
 		return fmt.Errorf("PUBLIC_OFFER_URL is not set")
+	}
+
+	if c.PrivacyPolicyTitle == "" {
+		return fmt.Errorf("PRIVACY_POLICY_TITLE is not set")
+	}
+
+	if c.PublicOfferTitle == "" {
+		return fmt.Errorf("PUBLIC_OFFER_TITLE is not set")
 	}
 
 	if c.Env != "dev" && c.Env != "prod" {
