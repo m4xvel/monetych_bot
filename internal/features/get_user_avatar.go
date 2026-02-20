@@ -2,7 +2,6 @@ package features
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/google/uuid"
 	"github.com/m4xvel/monetych_bot/internal/apperr"
 	"github.com/m4xvel/monetych_bot/internal/logger"
 )
@@ -53,7 +53,7 @@ func (f *Features) GetUserAvatar(bot *tgbotapi.BotAPI, chatID int64) string {
 
 	telegramURL := file.Link(bot.Token)
 
-	avatarURL, err := f.downloadFile(telegramURL, chatID)
+	avatarURL, err := f.downloadFile(telegramURL)
 	if err != nil {
 		logger.Log.Errorw("failed to download photo file",
 			"chat_id", chatID,
@@ -69,7 +69,7 @@ func (f *Features) GetUserAvatar(bot *tgbotapi.BotAPI, chatID int64) string {
 	return avatarURL
 }
 
-func (f *Features) downloadFile(fileURL string, userID int64) (string, error) {
+func (f *Features) downloadFile(fileURL string) (string, error) {
 	parsedURL, err := url.Parse(fileURL)
 	if err != nil {
 		return "", err
@@ -99,7 +99,7 @@ func (f *Features) downloadFile(fileURL string, userID int64) (string, error) {
 		return "", err
 	}
 
-	fileName := fmt.Sprintf("user_%d.jpg", userID)
+	fileName := uuid.NewString() + ".jpg"
 	filePath := filepath.Join(AvatarDir, fileName)
 
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
